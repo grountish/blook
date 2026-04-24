@@ -732,3 +732,6 @@ input[type="range"] {
     display: none;
   }
 }
+figure {
+  z-index: 2 !important;
+}
