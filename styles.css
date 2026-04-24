@@ -352,15 +352,15 @@ input[type="range"] {
   filter: grayscale(1) contrast(1.08);
 }
 
+.print-root {
+  display: none;
+}
+
 .workspace {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   min-height: 100vh;
-}
-
-.print-root {
-  display: none;
 }
 
 .workspace-toolbar {
@@ -415,6 +415,34 @@ input[type="range"] {
   margin: 8px 0 0;
   font-size: clamp(1.4rem, 4vw, 4rem);
   line-height: 0.95;
+}
+
+.cover-page {
+  background: var(--paper);
+}
+
+.cover-page .cover-title {
+  left: 11%;
+  top: 34%;
+  max-width: 78%;
+  font-size: calc(34px * var(--type-scale, 1));
+}
+
+.cover-page .cover-text {
+  position: absolute;
+  left: 11%;
+  bottom: 11%;
+  width: 72%;
+  z-index: 3;
+  color: var(--ink);
+  font-family: var(--body-font);
+  font-size: calc(10px * var(--type-scale, 1));
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.back-cover {
+  background: var(--paper);
 }
 
 .page-number,
@@ -747,7 +775,8 @@ input[type="range"] {
     display: none;
   }
 }
+
 figure {
   z-index: 2 !important;
 }
-  
+

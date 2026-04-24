@@ -599,8 +599,14 @@ function buildBookletPrint() {
   let sheetIndex = 0;
 
   while (low <= high) {
-    const leftPage = pages[low];
-    const rightPage = low === high ? null : pages[high];
+    let leftPage, rightPage;
+    if (sheetIndex % 2 === 0) {
+      leftPage = low === high ? null : pages[high];
+      rightPage = pages[low];
+    } else {
+      leftPage = pages[low];
+      rightPage = low === high ? null : pages[high];
+    }
     documentEl.append(makeBookletSheet(leftPage, rightPage, sheetIndex));
     low += 1;
     high -= 1;
@@ -623,6 +629,45 @@ function createBookletPdf() {
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => window.print());
   });
+}
+
+function renderCoverPage(settings) {
+  const page = document.createElement('article');
+  page.className = 'book-page cover-page';
+  page.style.setProperty('--display-font', settings.displayFont);
+  page.style.setProperty('--body-font', settings.bodyFont);
+  page.style.setProperty('--type-scale', settings.typeScale);
+  page.style.setProperty('--page-accent', settings.accent);
+
+  const display = document.createElement('h2');
+  display.className = 'display-line cover-title';
+  if (state.titleEdits.has(-1)) {
+    display.innerHTML = state.titleEdits.get(-1);
+  } else {
+    display.textContent = settings.title;
+  }
+  display.style.fontFamily = settings.displayFont;
+  makeEditableText(display, -1, 'title');
+  page.append(display);
+
+  const text = document.createElement('p');
+  text.className = 'cover-text';
+  if (state.bodyEdits.has(-1)) {
+    text.innerHTML = state.bodyEdits.get(-1);
+  } else {
+    text.textContent = 'subtitle / author / year';
+  }
+  makeEditableText(text, -1, 'body');
+  page.append(text);
+
+  return page;
+}
+
+function renderBackCoverPage(settings) {
+  const page = document.createElement('article');
+  page.className = 'book-page back-cover';
+  page.style.setProperty('--page-accent', settings.accent);
+  return page;
 }
 
 function renderPage(chunk, index, total, settings, rand) {
@@ -755,10 +800,12 @@ function render() {
 
   const rand = seededRandom(state.seed);
   const total = settings.pageCount;
+  els.pages.append(renderCoverPage(settings));
   for (let index = 0; index < total; index += 1) {
     const chunk = chunks[index] || '';
     els.pages.append(renderPage(chunk, index, total, settings, rand));
   }
+  els.pages.append(renderBackCoverPage(settings));
   updateEditTextMode();
 }
 
