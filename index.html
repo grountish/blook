@@ -89,7 +89,7 @@
 
         <div class="button-row">
           <button class="primary-button" id="generateBtn" type="button">Generate</button>
-          <button class="secondary-button" id="printBtn" type="button">Print / PDF</button>
+          <button class="secondary-button" id="printBtn" type="button">Create PDF</button>
         </div>
 
         <div class="image-strip" id="imageStrip" aria-label="Uploaded images"></div>
@@ -102,6 +102,7 @@
             <strong id="layoutName">Controlled chaos</strong>
           </div>
           <div class="toolbar-actions">
+            <button class="tool-button" id="editTextBtn" type="button" title="Edit page text" aria-label="Edit page text" aria-pressed="false">T</button>
             <button class="tool-button" id="fitBtn" type="button" title="Fit preview" aria-label="Fit preview">□</button>
             <button class="tool-button" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
             <button class="tool-button" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
@@ -112,6 +113,8 @@
         </section>
       </main>
     </div>
+
+    <div class="print-root" id="printRoot" aria-hidden="true"></div>
 
     <template id="emptyPageTemplate">
       <article class="book-page empty-page">

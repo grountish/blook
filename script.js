@@ -2,6 +2,9 @@ const state = {
   images: [],
   customFonts: [],
   systemFonts: [],
+  bodyEdits: new Map(),
+  titleEdits: new Map(),
+  editingText: false,
   columns: 2,
   seed: Math.floor(Math.random() * 100000),
   zoom: 1,
@@ -52,9 +55,11 @@ const els = {
   generate: document.querySelector("#generateBtn"),
   randomize: document.querySelector("#randomizeBtn"),
   print: document.querySelector("#printBtn"),
+  printRoot: document.querySelector("#printRoot"),
   pages: document.querySelector("#pages"),
   imageStrip: document.querySelector("#imageStrip"),
   layoutName: document.querySelector("#layoutName"),
+  editText: document.querySelector("#editTextBtn"),
   fit: document.querySelector("#fitBtn"),
   zoomIn: document.querySelector("#zoomInBtn"),
   zoomOut: document.querySelector("#zoomOutBtn"),
@@ -250,33 +255,34 @@ function layoutRecipe(index, rand, settings) {
   const types = ["schematic", "xerox", "poster", "manual"];
   const layout = pick(types, rand);
   const energy = settings.imageEnergy / 100;
-  const width = 30 + rand() * 42 * energy;
-  const height = 18 + rand() * 30 * energy;
-  const imageTop = rand() > 0.5 ? 6 + rand() * 22 : 48 + rand() * 28;
-  const imageLeft = rand() > 0.5 ? 5 + rand() * 18 : 42 + rand() * 26;
-  const textWidth = settings.columns === 2 ? 43 + rand() * 16 : 28 + rand() * 24;
-  const textHeight = 44 + rand() * 22;
-  const textLeft = index % 2 === 0 ? 7 + rand() * 18 : 45 + rand() * 12;
-  const textTop = rand() > 0.5 ? 10 + rand() * 16 : 35 + rand() * 20;
-  const displayLeft = rand() > 0.5 ? 7 + rand() * 16 : 47 + rand() * 16;
-  const displayTop = rand() > 0.5 ? 7 + rand() * 10 : 72 + rand() * 10;
+  const fit = (size, min, max) => min + rand() * Math.max(0, max - min - size);
+  const width = 38 + rand() * 48 * energy;
+  const height = 14 + rand() * 32 * energy;
+  const textWidth = settings.columns === 2 ? 76 + rand() * 12 : 58 + rand() * 28;
+  const textHeight = 30 + rand() * 42;
+  const imageTop = fit(height, 7, 91);
+  const imageLeft = fit(width, 6, 94);
+  const textLeft = fit(textWidth, 7, 93);
+  const textTop = rand() > 0.5 ? fit(textHeight, 10, 54) : fit(textHeight, 34, 92);
+  const displayLeft = fit(54, 7, 92);
+  const displayTop = rand() > 0.5 ? 8 + rand() * 14 : 70 + rand() * 13;
 
   return {
     layout,
     text: {
-      left: clamp(textLeft, 5, 67),
+      left: clamp(textLeft, 5, 32),
       top: clamp(textTop, 8, 70),
-      width: clamp(textWidth, 24, 62),
-      height: clamp(textHeight, 30, 72),
+      width: clamp(textWidth, 54, 88),
+      height: clamp(textHeight, 28, 72),
     },
     image: {
-      left: clamp(imageLeft, 4, 74),
+      left: clamp(imageLeft, 4, 54),
       top: clamp(imageTop, 4, 76),
-      width: clamp(width, 22, 72),
-      height: clamp(height, 16, 58),
+      width: clamp(width, 28, 86),
+      height: clamp(height, 12, 50),
     },
     display: {
-      left: clamp(displayLeft, 5, 72),
+      left: clamp(displayLeft, 5, 38),
       top: clamp(displayTop, 6, 82),
     },
     spaced: rand() > 0.38,
@@ -306,6 +312,118 @@ function addRules(page, rand, accent) {
     rule.style.backgroundColor = rule.classList.contains("red") ? accent : "";
     page.append(rule);
   }
+}
+
+function clearPageTextEdits() {
+  state.bodyEdits.clear();
+  state.titleEdits.clear();
+}
+
+function updateEditTextMode() {
+  els.editText.classList.toggle("is-active", state.editingText);
+  els.editText.setAttribute("aria-pressed", String(state.editingText));
+  els.pages.classList.toggle("is-editing-text", state.editingText);
+
+  els.pages.querySelectorAll(".editable-text").forEach((el) => {
+    if (state.editingText) {
+      el.setAttribute("contenteditable", "plaintext-only");
+      el.setAttribute("spellcheck", "false");
+      el.setAttribute("tabindex", "0");
+    } else {
+      el.removeAttribute("contenteditable");
+      el.removeAttribute("tabindex");
+    }
+  });
+}
+
+function makeEditableText(el, index, type) {
+  el.classList.add("editable-text");
+  el.dataset.pageIndex = String(index);
+  el.dataset.editType = type;
+  updateEditTextMode();
+}
+
+function insertPlainText(text) {
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+
+  selection.deleteFromDocument();
+  selection.getRangeAt(0).insertNode(document.createTextNode(text));
+  selection.collapseToEnd();
+}
+
+function clonePageForBooklet(page) {
+  const clone = page.cloneNode(true);
+  clone.querySelectorAll("[contenteditable], [tabindex]").forEach((el) => {
+    el.removeAttribute("contenteditable");
+    el.removeAttribute("tabindex");
+  });
+  return clone;
+}
+
+function makeBookletSlot(page, side) {
+  const slot = document.createElement("div");
+  slot.className = `booklet-slot booklet-slot-${side}`;
+
+  if (!page) {
+    slot.classList.add("is-blank");
+    return slot;
+  }
+
+  const frame = document.createElement("div");
+  frame.className = "booklet-page-frame";
+  frame.append(clonePageForBooklet(page));
+  slot.append(frame);
+  return slot;
+}
+
+function makeBookletSheet(leftPage, rightPage, index) {
+  const sheet = document.createElement("section");
+  sheet.className = "booklet-sheet";
+  sheet.dataset.sheet = String(index + 1);
+  sheet.append(makeBookletSlot(leftPage, "left"));
+  sheet.append(makeBookletSlot(rightPage, "right"));
+  return sheet;
+}
+
+function buildBookletPrint() {
+  const pages = [...els.pages.querySelectorAll(".book-page:not(.empty-page)")];
+  els.printRoot.innerHTML = "";
+
+  if (!pages.length) return false;
+
+  const documentEl = document.createElement("div");
+  documentEl.className = "booklet-document";
+
+  let low = 0;
+  let high = pages.length - 1;
+  let sheetIndex = 0;
+
+  while (low <= high) {
+    const leftPage = pages[low];
+    const rightPage = low === high ? null : pages[high];
+    documentEl.append(makeBookletSheet(leftPage, rightPage, sheetIndex));
+    low += 1;
+    high -= 1;
+    sheetIndex += 1;
+  }
+
+  els.printRoot.append(documentEl);
+  return true;
+}
+
+function cleanupBookletPrint() {
+  document.body.classList.remove("is-booklet-printing");
+  els.printRoot.innerHTML = "";
+}
+
+function createBookletPdf() {
+  if (!buildBookletPrint()) return;
+
+  document.body.classList.add("is-booklet-printing");
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => window.print());
+  });
 }
 
 function renderPage(chunk, index, total, settings, rand) {
@@ -362,10 +480,11 @@ function renderPage(chunk, index, total, settings, rand) {
 
   const display = document.createElement("h2");
   display.className = `display-line ${recipe.outline ? "outline" : ""} ${recipe.blackTitle ? "black" : ""}`;
-  display.textContent = index === 0 ? settings.title : phraseFromChunk(chunk);
+  display.textContent = state.titleEdits.get(index) ?? (index === 0 ? settings.title : phraseFromChunk(chunk));
   display.style.left = `${recipe.display.left}%`;
   display.style.top = `${recipe.display.top}%`;
   display.style.fontFamily = settings.displayFont;
+  makeEditableText(display, index, "title");
   page.append(display);
 
   const textZone = document.createElement("div");
@@ -374,7 +493,8 @@ function renderPage(chunk, index, total, settings, rand) {
   placePercent(textZone, recipe.text);
 
   const paragraph = document.createElement("p");
-  paragraph.textContent = chunk;
+  paragraph.textContent = state.bodyEdits.get(index) ?? chunk;
+  makeEditableText(paragraph, index, "body");
   textZone.append(paragraph);
   page.append(textZone);
 
@@ -404,8 +524,8 @@ function currentSettings() {
     monoImages: els.monoImages.checked,
     displayFont,
     bodyFont,
-    bodySize: state.columns === 2 ? 10.6 : 12.2,
-    leading: state.columns === 2 ? 1.42 : 1.48,
+    bodySize: state.columns === 2 ? 9.4 : 10.6,
+    leading: state.columns === 2 ? 1.38 : 1.45,
     title: titleFromText(els.text.value),
   };
 }
@@ -428,11 +548,13 @@ function render() {
     const chunk = chunks[index] || "";
     els.pages.append(renderPage(chunk, index, total, settings, rand));
   }
+  updateEditTextMode();
 }
 
 function randomize() {
   const rand = seededRandom(Date.now() % 1000000);
   const fonts = allFonts();
+  clearPageTextEdits();
   state.seed = Math.floor(rand() * 1000000);
   state.columns = rand() > 0.48 ? 2 : 1;
   els.displayFont.value = pick(fonts, rand).id;
@@ -464,8 +586,12 @@ function fitPreview() {
 
 els.generate.addEventListener("click", render);
 els.randomize.addEventListener("click", randomize);
-els.print.addEventListener("click", () => window.print());
+els.print.addEventListener("click", createBookletPdf);
 els.systemFontBtn.addEventListener("click", loadSystemFonts);
+els.editText.addEventListener("click", () => {
+  state.editingText = !state.editingText;
+  updateEditTextMode();
+});
 els.fit.addEventListener("click", fitPreview);
 els.zoomIn.addEventListener("click", () => {
   state.zoom = clamp(state.zoom + 0.1, 0.45, 1.4);
@@ -484,10 +610,37 @@ els.segments.forEach((segment) => {
   });
 });
 
-for (const el of [els.text, els.pageCount, els.accentColor, els.typeScale, els.imageEnergy, els.monoImages, els.displayFont, els.bodyFont]) {
+els.text.addEventListener("input", () => {
+  clearPageTextEdits();
+  render();
+});
+els.text.addEventListener("change", () => {
+  clearPageTextEdits();
+  render();
+});
+
+for (const el of [els.pageCount, els.accentColor, els.typeScale, els.imageEnergy, els.monoImages, els.displayFont, els.bodyFont]) {
   el.addEventListener("input", render);
   el.addEventListener("change", render);
 }
+
+els.pages.addEventListener("input", (event) => {
+  const editable = event.target.closest(".editable-text");
+  if (!editable || !state.editingText) return;
+
+  const pageIndex = Number(editable.dataset.pageIndex);
+  const targetMap = editable.dataset.editType === "title" ? state.titleEdits : state.bodyEdits;
+  targetMap.set(pageIndex, editable.textContent);
+});
+
+els.pages.addEventListener("paste", (event) => {
+  const editable = event.target.closest(".editable-text");
+  if (!editable || !state.editingText) return;
+
+  event.preventDefault();
+  insertPlainText(event.clipboardData.getData("text/plain"));
+  editable.dispatchEvent(new Event("input", { bubbles: true }));
+});
 
 els.imageInput.addEventListener("change", async (event) => {
   const images = await readFiles(event.target.files, (file, url) => ({
@@ -511,6 +664,7 @@ els.fontInput.addEventListener("change", async (event) => {
 window.addEventListener("resize", () => {
   if (state.zoom < 1) fitPreview();
 });
+window.addEventListener("afterprint", cleanupBookletPrint);
 
 refreshFontSelects();
 updateSegments();
