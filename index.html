@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blook Studio</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="panel controls" aria-label="Book controls">
+        <div class="brand-row">
+          <div>
+            <p class="kicker">Blook Studio</p>
+            <h1>Fanzine Layout Machine</h1>
+          </div>
+          <button class="icon-button" id="randomizeBtn" type="button" title="Randomize layout" aria-label="Randomize layout">
+            <span aria-hidden="true">⟳</span>
+          </button>
+        </div>
+
+        <label class="field">
+          <span>Text</span>
+          <textarea id="sourceText" spellcheck="false" placeholder="Paste the full book or fanzine text here. Use the first line as a title."></textarea>
+        </label>
+
+        <div class="upload-grid">
+          <label class="upload-field">
+            <span>Images</span>
+            <strong>Add images</strong>
+            <small id="imageCount">0 files</small>
+            <input id="imageInput" class="sr-only" type="file" accept="image/*" multiple />
+          </label>
+          <label class="upload-field">
+            <span>Fonts</span>
+            <strong>Add fonts</strong>
+            <small id="fontCount">0 files</small>
+            <input id="fontInput" class="sr-only" type="file" accept=".ttf,.otf,.woff,.woff2" multiple />
+          </label>
+        </div>
+
+        <div class="system-font-row">
+          <button class="secondary-button" id="systemFontBtn" type="button">Load system fonts</button>
+          <small id="systemFontStatus" aria-live="polite">Browser permission required</small>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Display</span>
+            <select id="displayFont"></select>
+          </label>
+          <label class="field">
+            <span>Text</span>
+            <select id="bodyFont"></select>
+          </label>
+        </div>
+
+        <div class="segmented" aria-label="Column count">
+          <button class="segment is-active" type="button" data-columns="1">1 column</button>
+          <button class="segment" type="button" data-columns="2">2 columns</button>
+        </div>
+
+        <div class="field-grid">
+          <label class="field">
+            <span>Page count</span>
+            <input id="pageCount" type="number" min="1" max="24" value="4" />
+          </label>
+          <label class="field">
+            <span>Accent</span>
+            <input id="accentColor" type="color" value="#ff2a1c" />
+          </label>
+        </div>
+
+        <label class="range-field">
+          <span>Type scale</span>
+          <input id="typeScale" type="range" min="0.78" max="1.42" value="1" step="0.02" />
+        </label>
+
+        <label class="range-field">
+          <span>Image energy</span>
+          <input id="imageEnergy" type="range" min="0" max="100" value="62" />
+        </label>
+
+        <label class="check-field">
+          <input id="monoImages" type="checkbox" checked />
+          <span>Monochrome image treatment</span>
+        </label>
+
+        <div class="button-row">
+          <button class="primary-button" id="generateBtn" type="button">Generate</button>
+          <button class="secondary-button" id="printBtn" type="button">Print / PDF</button>
+        </div>
+
+        <div class="image-strip" id="imageStrip" aria-label="Uploaded images"></div>
+      </aside>
+
+      <main class="workspace" aria-label="Generated book preview">
+        <div class="workspace-toolbar">
+          <div>
+            <p class="kicker">Preview</p>
+            <strong id="layoutName">Controlled chaos</strong>
+          </div>
+          <div class="toolbar-actions">
+            <button class="tool-button" id="fitBtn" type="button" title="Fit preview" aria-label="Fit preview">□</button>
+            <button class="tool-button" id="zoomOutBtn" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+            <button class="tool-button" id="zoomInBtn" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+          </div>
+        </div>
+        <section class="preview-stage" id="previewStage">
+          <div class="pages" id="pages"></div>
+        </section>
+      </main>
+    </div>
+
+    <template id="emptyPageTemplate">
+      <article class="book-page empty-page">
+        <div>
+          <p class="kicker">No source yet</p>
+          <h2>Paste text and add images.</h2>
+        </div>
+      </article>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>

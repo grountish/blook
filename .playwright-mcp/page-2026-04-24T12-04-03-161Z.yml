@@ -1,0 +1,74 @@
+- generic [ref=e2]:
+  - complementary "Book controls" [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - paragraph [ref=e6]: Blook Studio
+        - heading "Fanzine Layout Machine" [level=1] [ref=e7]
+      - button "Randomize layout" [ref=e8] [cursor=pointer]:
+        - generic [ref=e9]: ⟳
+    - generic [ref=e10]:
+      - generic [ref=e11]: Text
+      - textbox "Text" [ref=e12]:
+        - /placeholder: Paste the full book or fanzine text here. Use the first line as a title.
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Images
+        - button "Images" [ref=e16]
+      - generic [ref=e17]:
+        - generic [ref=e18]: Fonts
+        - button "Fonts" [ref=e19]
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: Display
+        - combobox "Display" [ref=e23]:
+          - option "Futurist mono"
+          - option "Editorial serif"
+          - option "Condensed grotesk" [selected]
+          - option "Swiss grotesk"
+          - option "Typewriter"
+          - option "System UI"
+      - generic [ref=e24]:
+        - generic [ref=e25]: Text
+        - combobox "Text" [ref=e26]:
+          - option "Futurist mono" [selected]
+          - option "Editorial serif"
+          - option "Condensed grotesk"
+          - option "Swiss grotesk"
+          - option "Typewriter"
+          - option "System UI"
+    - generic "Column count" [ref=e27]:
+      - button "1 column" [ref=e28] [cursor=pointer]
+      - button "2 columns" [ref=e29] [cursor=pointer]
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]: Page count
+        - spinbutton "Page count" [ref=e33]: "4"
+      - generic [ref=e34]:
+        - generic [ref=e35]: Accent
+        - textbox "Accent" [ref=e36]: "#ff2a1c"
+    - generic [ref=e37]:
+      - generic [ref=e38]: Type scale
+      - slider "Type scale" [ref=e39]: "1"
+    - generic [ref=e40]:
+      - generic [ref=e41]: Image energy
+      - slider "Image energy" [ref=e42]: "62"
+    - generic [ref=e43]:
+      - checkbox "Monochrome image treatment" [checked] [ref=e44]
+      - generic [ref=e45]: Monochrome image treatment
+    - generic [ref=e46]:
+      - button "Generate" [ref=e47] [cursor=pointer]
+      - button "Print / PDF" [ref=e48] [cursor=pointer]
+    - generic "Uploaded images"
+  - main "Generated book preview" [ref=e49]:
+    - generic [ref=e50]:
+      - generic [ref=e51]:
+        - paragraph [ref=e52]: Preview
+        - strong [ref=e53]: Controlled chaos
+      - generic [ref=e54]:
+        - button "Fit preview" [ref=e55] [cursor=pointer]: □
+        - button "Zoom out" [ref=e56] [cursor=pointer]: −
+        - button "Zoom in" [ref=e57] [cursor=pointer]: +
+    - article [ref=e60]:
+      - generic [ref=e61]:
+        - paragraph [ref=e62]: No source yet
+        - heading "Paste text and add images." [level=2] [ref=e63]
