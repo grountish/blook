@@ -5,6 +5,8 @@ const state = {
   bodyEdits: new Map(),
   titleEdits: new Map(),
   editingText: false,
+  savedSelection: null,
+  activeEditable: null,
   columns: 2,
   seed: Math.floor(Math.random() * 100000),
   zoom: 1,
@@ -60,6 +62,11 @@ const els = {
   imageStrip: document.querySelector("#imageStrip"),
   layoutName: document.querySelector("#layoutName"),
   editText: document.querySelector("#editTextBtn"),
+  formatTools: document.querySelector("#formatTools"),
+  bold: document.querySelector("#boldBtn"),
+  italic: document.querySelector("#italicBtn"),
+  highlight: document.querySelector("#highlightBtn"),
+  highlightColor: document.querySelector("#highlightColor"),
   fit: document.querySelector("#fitBtn"),
   zoomIn: document.querySelector("#zoomInBtn"),
   zoomOut: document.querySelector("#zoomOutBtn"),
@@ -324,9 +331,13 @@ function updateEditTextMode() {
   els.editText.setAttribute("aria-pressed", String(state.editingText));
   els.pages.classList.toggle("is-editing-text", state.editingText);
 
+  for (const control of [els.bold, els.italic, els.highlight, els.highlightColor]) {
+    control.disabled = !state.editingText;
+  }
+
   els.pages.querySelectorAll(".editable-text").forEach((el) => {
     if (state.editingText) {
-      el.setAttribute("contenteditable", "plaintext-only");
+      el.setAttribute("contenteditable", "true");
       el.setAttribute("spellcheck", "false");
       el.setAttribute("tabindex", "0");
     } else {
@@ -334,6 +345,11 @@ function updateEditTextMode() {
       el.removeAttribute("tabindex");
     }
   });
+
+  if (!state.editingText) {
+    state.savedSelection = null;
+    state.activeEditable = null;
+  }
 }
 
 function makeEditableText(el, index, type) {
@@ -350,6 +366,86 @@ function insertPlainText(text) {
   selection.deleteFromDocument();
   selection.getRangeAt(0).insertNode(document.createTextNode(text));
   selection.collapseToEnd();
+}
+
+function editableFromNode(node) {
+  const element = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  return element?.closest?.(".editable-text") ?? null;
+}
+
+function editableFromSelection() {
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return null;
+  return editableFromNode(selection.anchorNode);
+}
+
+function saveTextSelection() {
+  if (!state.editingText) return;
+
+  const selection = window.getSelection();
+  if (!selection || !selection.rangeCount) return;
+
+  const editable = editableFromSelection();
+  if (!editable) return;
+
+  state.savedSelection = selection.getRangeAt(0).cloneRange();
+  state.activeEditable = editable;
+}
+
+function restoreTextSelection() {
+  if (!state.savedSelection || !state.activeEditable?.isConnected) return false;
+
+  state.activeEditable.focus({ preventScroll: true });
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(state.savedSelection);
+  return true;
+}
+
+function storeEditableOverride(editable) {
+  if (!editable) return;
+
+  const pageIndex = Number(editable.dataset.pageIndex);
+  const targetMap = editable.dataset.editType === "title" ? state.titleEdits : state.bodyEdits;
+  targetMap.set(pageIndex, editable.innerHTML);
+}
+
+function updateFormatState() {
+  if (!state.editingText) {
+    els.bold.classList.remove("is-active");
+    els.italic.classList.remove("is-active");
+    return;
+  }
+
+  els.bold.classList.toggle("is-active", document.queryCommandState("bold"));
+  els.italic.classList.toggle("is-active", document.queryCommandState("italic"));
+}
+
+function runTextCommand(command, value = null) {
+  if (!state.editingText) return;
+
+  restoreTextSelection();
+  const editable = editableFromSelection() ?? state.activeEditable;
+  if (!editable) return;
+
+  document.execCommand("styleWithCSS", false, true);
+  document.execCommand(command, false, value);
+  storeEditableOverride(editable);
+  saveTextSelection();
+  updateFormatState();
+}
+
+function applyTextBackground() {
+  if (!state.editingText) return;
+
+  restoreTextSelection();
+  const editable = editableFromSelection() ?? state.activeEditable;
+  if (!editable) return;
+
+  document.execCommand("styleWithCSS", false, true);
+  document.execCommand("backColor", false, els.highlightColor.value);
+  storeEditableOverride(editable);
+  saveTextSelection();
 }
 
 function clonePageForBooklet(page) {
@@ -480,7 +576,11 @@ function renderPage(chunk, index, total, settings, rand) {
 
   const display = document.createElement("h2");
   display.className = `display-line ${recipe.outline ? "outline" : ""} ${recipe.blackTitle ? "black" : ""}`;
-  display.textContent = state.titleEdits.get(index) ?? (index === 0 ? settings.title : phraseFromChunk(chunk));
+  if (state.titleEdits.has(index)) {
+    display.innerHTML = state.titleEdits.get(index);
+  } else {
+    display.textContent = index === 0 ? settings.title : phraseFromChunk(chunk);
+  }
   display.style.left = `${recipe.display.left}%`;
   display.style.top = `${recipe.display.top}%`;
   display.style.fontFamily = settings.displayFont;
@@ -493,7 +593,11 @@ function renderPage(chunk, index, total, settings, rand) {
   placePercent(textZone, recipe.text);
 
   const paragraph = document.createElement("p");
-  paragraph.textContent = state.bodyEdits.get(index) ?? chunk;
+  if (state.bodyEdits.has(index)) {
+    paragraph.innerHTML = state.bodyEdits.get(index);
+  } else {
+    paragraph.textContent = chunk;
+  }
   makeEditableText(paragraph, index, "body");
   textZone.append(paragraph);
   page.append(textZone);
@@ -539,6 +643,7 @@ function render() {
   if (!chunks.length) {
     const empty = document.querySelector("#emptyPageTemplate").content.cloneNode(true);
     els.pages.append(empty);
+    updateEditTextMode();
     return;
   }
 
@@ -592,6 +697,14 @@ els.editText.addEventListener("click", () => {
   state.editingText = !state.editingText;
   updateEditTextMode();
 });
+for (const control of [els.bold, els.italic, els.highlight, els.highlightColor]) {
+  control.addEventListener("mousedown", saveTextSelection);
+}
+els.bold.addEventListener("click", () => runTextCommand("bold"));
+els.italic.addEventListener("click", () => runTextCommand("italic"));
+els.highlight.addEventListener("click", applyTextBackground);
+els.highlightColor.addEventListener("input", applyTextBackground);
+els.highlightColor.addEventListener("change", applyTextBackground);
 els.fit.addEventListener("click", fitPreview);
 els.zoomIn.addEventListener("click", () => {
   state.zoom = clamp(state.zoom + 0.1, 0.45, 1.4);
@@ -628,9 +741,8 @@ els.pages.addEventListener("input", (event) => {
   const editable = event.target.closest(".editable-text");
   if (!editable || !state.editingText) return;
 
-  const pageIndex = Number(editable.dataset.pageIndex);
-  const targetMap = editable.dataset.editType === "title" ? state.titleEdits : state.bodyEdits;
-  targetMap.set(pageIndex, editable.textContent);
+  storeEditableOverride(editable);
+  saveTextSelection();
 });
 
 els.pages.addEventListener("paste", (event) => {
@@ -640,6 +752,15 @@ els.pages.addEventListener("paste", (event) => {
   event.preventDefault();
   insertPlainText(event.clipboardData.getData("text/plain"));
   editable.dispatchEvent(new Event("input", { bubbles: true }));
+});
+
+els.pages.addEventListener("keyup", () => {
+  saveTextSelection();
+  updateFormatState();
+});
+els.pages.addEventListener("mouseup", () => {
+  saveTextSelection();
+  updateFormatState();
 });
 
 els.imageInput.addEventListener("change", async (event) => {
@@ -665,6 +786,10 @@ window.addEventListener("resize", () => {
   if (state.zoom < 1) fitPreview();
 });
 window.addEventListener("afterprint", cleanupBookletPrint);
+document.addEventListener("selectionchange", () => {
+  saveTextSelection();
+  updateFormatState();
+});
 
 refreshFontSelects();
 updateSegments();

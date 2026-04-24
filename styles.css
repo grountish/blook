@@ -316,6 +316,27 @@ input[type="range"] {
   color: #fff;
 }
 
+.format-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.format-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+}
+
+.color-control {
+  width: 42px;
+  min-height: 40px;
+  padding: 4px;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  background: #fbfaf6;
+}
+
 .image-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -428,6 +449,11 @@ input[type="range"] {
   font-size: calc(var(--body-size, 12px) * var(--type-scale, 1));
   line-height: var(--body-leading, 1.45);
   white-space: pre-wrap;
+}
+
+.editable-text mark,
+.editable-text span {
+  color: inherit;
 }
 
 .editable-text {
