@@ -510,6 +510,7 @@ input[type="range"] {
   z-index: 2;
   margin: 0;
   overflow: hidden;
+  touch-action: none;
 }
 
 .image-block img {
@@ -520,7 +521,7 @@ input[type="range"] {
 }
 
 .image-block.mono img {
-  filter: grayscale(1) contrast(1.18);
+  filter: grayscale(1) contrast(1);
   mix-blend-mode: multiply;
 }
 
@@ -534,6 +535,17 @@ input[type="range"] {
 
 .image-block.rotate-right {
   transform: rotate(1.2deg);
+}
+
+.is-editing-text .movable-image {
+  cursor: move;
+  outline: 1px dashed color-mix(in srgb, var(--page-accent) 70%, transparent);
+  outline-offset: 4px;
+}
+
+.movable-image.is-dragging {
+  z-index: 9 !important;
+  outline: 2px solid var(--page-accent);
 }
 
 .caption {
@@ -735,3 +747,4 @@ input[type="range"] {
 figure {
   z-index: 2 !important;
 }
+  

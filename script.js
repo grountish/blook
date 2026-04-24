@@ -4,9 +4,11 @@ const state = {
   systemFonts: [],
   bodyEdits: new Map(),
   titleEdits: new Map(),
+  imageEdits: new Map(),
   editingText: false,
   savedSelection: null,
   activeEditable: null,
+  draggedImage: null,
   columns: 2,
   seed: Math.floor(Math.random() * 100000),
   zoom: 1,
@@ -326,6 +328,10 @@ function clearPageTextEdits() {
   state.titleEdits.clear();
 }
 
+function clearImageEdits() {
+  state.imageEdits.clear();
+}
+
 function updateEditTextMode() {
   els.editText.classList.toggle("is-active", state.editingText);
   els.editText.setAttribute("aria-pressed", String(state.editingText));
@@ -366,6 +372,70 @@ function insertPlainText(text) {
   selection.deleteFromDocument();
   selection.getRangeAt(0).insertNode(document.createTextNode(text));
   selection.collapseToEnd();
+}
+
+function imageEditKey(index, slot) {
+  return `${index}:${slot}`;
+}
+
+function applyImageEdit(figure, index, slot) {
+  figure.classList.add("movable-image");
+  figure.dataset.pageIndex = String(index);
+  figure.dataset.imageSlot = slot;
+
+  const edit = state.imageEdits.get(imageEditKey(index, slot));
+  if (!edit) return;
+
+  figure.style.left = `${edit.left}%`;
+  figure.style.top = `${edit.top}%`;
+}
+
+function startImageDrag(event) {
+  const figure = event.target.closest(".movable-image");
+  if (!figure || !state.editingText) return;
+
+  const page = figure.closest(".book-page");
+  if (!page) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const pageRect = page.getBoundingClientRect();
+  const figureRect = figure.getBoundingClientRect();
+  const width = parseFloat(figure.style.width) || (figureRect.width / pageRect.width) * 100;
+  const height = parseFloat(figure.style.height) || (figureRect.height / pageRect.height) * 100;
+
+  state.draggedImage = {
+    figure,
+    pageRect,
+    offsetX: event.clientX - figureRect.left,
+    offsetY: event.clientY - figureRect.top,
+    width,
+    height,
+    key: imageEditKey(figure.dataset.pageIndex, figure.dataset.imageSlot),
+  };
+
+  figure.classList.add("is-dragging");
+  figure.setPointerCapture?.(event.pointerId);
+}
+
+function moveDraggedImage(event) {
+  if (!state.draggedImage) return;
+
+  const drag = state.draggedImage;
+  const left = clamp(((event.clientX - drag.pageRect.left - drag.offsetX) / drag.pageRect.width) * 100, 0, 100 - drag.width);
+  const top = clamp(((event.clientY - drag.pageRect.top - drag.offsetY) / drag.pageRect.height) * 100, 0, 100 - drag.height);
+
+  drag.figure.style.left = `${left}%`;
+  drag.figure.style.top = `${top}%`;
+  state.imageEdits.set(drag.key, { left, top });
+}
+
+function stopImageDrag() {
+  if (!state.draggedImage) return;
+
+  state.draggedImage.figure.classList.remove("is-dragging");
+  state.draggedImage = null;
 }
 
 function editableFromNode(node) {
@@ -548,6 +618,7 @@ function renderPage(chunk, index, total, settings, rand) {
     const figure = document.createElement("figure");
     figure.className = `image-block ${settings.monoImages ? "mono" : ""} ${rand() > 0.42 ? "line" : ""} ${recipe.rotate}`;
     placePercent(figure, recipe.image);
+    applyImageEdit(figure, index, "primary");
 
     const img = document.createElement("img");
     img.src = image.url;
@@ -566,6 +637,7 @@ function renderPage(chunk, index, total, settings, rand) {
       width: 12 + rand() * 18,
       height: 12 + rand() * 22,
     });
+    applyImageEdit(figure, index, "secondary");
     figure.style.zIndex = rand() > 0.5 ? "1" : "4";
     const img = document.createElement("img");
     img.src = second.url;
@@ -660,6 +732,7 @@ function randomize() {
   const rand = seededRandom(Date.now() % 1000000);
   const fonts = allFonts();
   clearPageTextEdits();
+  clearImageEdits();
   state.seed = Math.floor(rand() * 1000000);
   state.columns = rand() > 0.48 ? 2 : 1;
   els.displayFont.value = pick(fonts, rand).id;
@@ -762,6 +835,10 @@ els.pages.addEventListener("mouseup", () => {
   saveTextSelection();
   updateFormatState();
 });
+els.pages.addEventListener("pointerdown", startImageDrag);
+window.addEventListener("pointermove", moveDraggedImage);
+window.addEventListener("pointerup", stopImageDrag);
+window.addEventListener("pointercancel", stopImageDrag);
 
 els.imageInput.addEventListener("change", async (event) => {
   const images = await readFiles(event.target.files, (file, url) => ({
@@ -769,6 +846,7 @@ els.imageInput.addEventListener("change", async (event) => {
     url,
   }));
   state.images = images;
+  clearImageEdits();
   els.imageCount.textContent = `${images.length} file${images.length === 1 ? "" : "s"}`;
   makeImageStrip();
   render();
