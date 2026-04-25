@@ -9,6 +9,8 @@ const state = {
   savedSelection: null,
   activeEditable: null,
   draggedImage: null,
+  draggedZone: null,
+  textZoneEdits: new Map(),
   columns: 2,
   seed: Math.floor(Math.random() * 100000),
   zoom: 1,
@@ -357,6 +359,7 @@ function clearPageTextEdits() {
 
 function clearImageEdits() {
   state.imageEdits.clear();
+  state.textZoneEdits.clear();
 }
 
 function updateEditTextMode() {
@@ -471,6 +474,78 @@ function stopImageDrag() {
 
   state.draggedImage.figure.classList.remove('is-dragging');
   state.draggedImage = null;
+}
+
+function startTextZoneDrag(event) {
+  if (!state.editingText) return;
+
+  const handle = event.target.closest('.zone-drag-handle');
+  const resizer = event.target.closest('.zone-resize-handle');
+  if (!handle && !resizer) return;
+
+  const textZone = (handle || resizer).closest('.text-zone');
+  const page = textZone?.closest('.book-page');
+  if (!textZone || !page) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const pageRect = page.getBoundingClientRect();
+  const zoneRect = textZone.getBoundingClientRect();
+  const left = (zoneRect.left - pageRect.left) / pageRect.width * 100;
+  const top = (zoneRect.top - pageRect.top) / pageRect.height * 100;
+  const width = zoneRect.width / pageRect.width * 100;
+  const height = zoneRect.height / pageRect.height * 100;
+
+  state.draggedZone = {
+    textZone,
+    pageRect,
+    mode: handle ? 'move' : 'resize',
+    index: Number(textZone.dataset.pageIndex),
+    startX: event.clientX,
+    startY: event.clientY,
+    startLeft: left,
+    startTop: top,
+    startWidth: width,
+    startHeight: height,
+  };
+
+  textZone.classList.add('is-dragging-zone');
+  event.target.setPointerCapture?.(event.pointerId);
+}
+
+function moveTextZoneDrag(event) {
+  if (!state.draggedZone) return;
+
+  const drag = state.draggedZone;
+  const dx = ((event.clientX - drag.startX) / drag.pageRect.width) * 100;
+  const dy = ((event.clientY - drag.startY) / drag.pageRect.height) * 100;
+
+  let left = drag.startLeft;
+  let top = drag.startTop;
+  let width = drag.startWidth;
+  let height = drag.startHeight;
+
+  if (drag.mode === 'move') {
+    left = clamp(drag.startLeft + dx, 0, 85);
+    top = clamp(drag.startTop + dy, 0, 85);
+  } else {
+    width = clamp(drag.startWidth + dx, 15, 96);
+    height = clamp(drag.startHeight + dy, 12, 92);
+  }
+
+  drag.textZone.style.left = `${left}%`;
+  drag.textZone.style.top = `${top}%`;
+  drag.textZone.style.width = `${width}%`;
+  drag.textZone.style.height = `${height}%`;
+  state.textZoneEdits.set(drag.index, { left, top, width, height });
+}
+
+function stopTextZoneDrag() {
+  if (!state.draggedZone) return;
+
+  state.draggedZone.textZone.classList.remove('is-dragging-zone');
+  state.draggedZone = null;
 }
 
 function editableFromNode(node) {
@@ -743,7 +818,21 @@ function renderPage(chunk, index, total, settings, rand) {
   const textZone = document.createElement('div');
   textZone.className = `text-zone columns-${settings.columns} ${recipe.spaced ? 'spaced' : ''}`;
   textZone.style.fontFamily = settings.bodyFont;
+  textZone.dataset.pageIndex = String(index);
   placePercent(textZone, recipe.text);
+
+  const zoneEdit = state.textZoneEdits.get(index);
+  if (zoneEdit) {
+    textZone.style.left = `${zoneEdit.left}%`;
+    textZone.style.top = `${zoneEdit.top}%`;
+    textZone.style.width = `${zoneEdit.width}%`;
+    textZone.style.height = `${zoneEdit.height}%`;
+  }
+
+  const dragHandle = document.createElement('div');
+  dragHandle.className = 'zone-drag-handle';
+  dragHandle.setAttribute('aria-hidden', 'true');
+  textZone.append(dragHandle);
 
   const paragraph = document.createElement('p');
   if (state.bodyEdits.has(index)) {
@@ -753,6 +842,12 @@ function renderPage(chunk, index, total, settings, rand) {
   }
   makeEditableText(paragraph, index, 'body');
   textZone.append(paragraph);
+
+  const resizeHandle = document.createElement('div');
+  resizeHandle.className = 'zone-resize-handle';
+  resizeHandle.setAttribute('aria-hidden', 'true');
+  textZone.append(resizeHandle);
+
   page.append(textZone);
 
   const caption = document.createElement('span');
@@ -919,6 +1014,7 @@ function serializeBook() {
     bodyEdits: [...state.bodyEdits.entries()],
     titleEdits: [...state.titleEdits.entries()],
     imageEdits: [...state.imageEdits.entries()],
+    textZoneEdits: [...state.textZoneEdits.entries()],
     images: state.images,
   };
 }
@@ -955,6 +1051,7 @@ async function loadBook(id) {
   state.bodyEdits = new Map(record.bodyEdits || []);
   state.titleEdits = new Map(record.titleEdits || []);
   state.imageEdits = new Map(record.imageEdits || []);
+  state.textZoneEdits = new Map(record.textZoneEdits || []);
 
   refreshFontSelects();
   if (record.displayFontId) els.displayFont.value = record.displayFontId;
@@ -1139,9 +1236,13 @@ els.pages.addEventListener('mouseup', () => {
   updateFormatState();
 });
 els.pages.addEventListener('pointerdown', startImageDrag);
+els.pages.addEventListener('pointerdown', startTextZoneDrag);
 window.addEventListener('pointermove', moveDraggedImage);
+window.addEventListener('pointermove', moveTextZoneDrag);
 window.addEventListener('pointerup', stopImageDrag);
+window.addEventListener('pointerup', stopTextZoneDrag);
 window.addEventListener('pointercancel', stopImageDrag);
+window.addEventListener('pointercancel', stopTextZoneDrag);
 
 els.imageInput.addEventListener('change', async (event) => {
   const images = await readFiles(event.target.files, (file, url) => ({

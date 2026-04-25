@@ -732,6 +732,67 @@ input[type="range"] {
   outline: 2px solid var(--page-accent);
 }
 
+.zone-drag-handle,
+.zone-resize-handle {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  user-select: none;
+  pointer-events: none;
+}
+
+.is-editing-text .text-zone {
+  outline: 1px dashed color-mix(in srgb, var(--page-accent) 45%, transparent);
+  touch-action: none;
+}
+
+.is-editing-text .text-zone:hover {
+  outline: 1px dashed color-mix(in srgb, var(--page-accent) 80%, transparent);
+}
+
+.is-editing-text .zone-drag-handle,
+.is-editing-text .zone-resize-handle {
+  display: block;
+  pointer-events: all;
+}
+
+.zone-drag-handle {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: grab;
+  background: color-mix(in srgb, var(--page-accent) 22%, transparent);
+}
+
+.zone-drag-handle:hover {
+  background: color-mix(in srgb, var(--page-accent) 40%, transparent);
+}
+
+.zone-drag-handle:active {
+  cursor: grabbing;
+}
+
+.zone-resize-handle {
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
+  cursor: se-resize;
+  background: var(--page-accent);
+  opacity: 0.7;
+  border-top-left-radius: 3px;
+}
+
+.zone-resize-handle:hover {
+  opacity: 1;
+}
+
+.text-zone.is-dragging-zone {
+  z-index: 9 !important;
+  outline: 2px solid var(--page-accent) !important;
+}
+
 .caption {
   position: absolute;
   z-index: 5;
