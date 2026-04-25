@@ -468,6 +468,7 @@ input[type="range"] {
   position: absolute;
   z-index: 3;
   color: var(--ink);
+  overflow: hidden;
 }
 
 .text-zone.columns-2 {
@@ -604,7 +605,6 @@ input[type="range"] {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: linear-gradient(90deg, rgba(0,0,0,.18) 1px, transparent 1px), linear-gradient(rgba(0,0,0,.12) 1px, transparent 1px);
   background-size: 38px 38px;
   mix-blend-mode: multiply;
 }
@@ -620,7 +620,6 @@ input[type="range"] {
   z-index: 8;
   pointer-events: none;
   opacity: 0.15;
-  background-image: radial-gradient(circle at 20% 30%, #000 0 0.5px, transparent 0.8px), radial-gradient(circle at 70% 55%, #000 0 0.6px, transparent 1px);
   background-size: 15px 17px, 23px 19px;
   mix-blend-mode: multiply;
 }
@@ -688,6 +687,10 @@ input[type="range"] {
 @media print {
   :root {
     --page-scale: 1 !important;
+  }
+
+  .book-page[data-layout="xerox"]::after {
+    display: none;
   }
 
   body {
