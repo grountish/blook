@@ -15,9 +15,7 @@
             <p class="kicker">Blook Studio</p>
             <h1>Fanzine Layout Machine</h1>
           </div>
-          <button class="icon-button" id="randomizeBtn" type="button" title="Randomize layout" aria-label="Randomize layout">
-            <span aria-hidden="true">⟳</span>
-          </button>
+          <button class="icon-button" id="randomizeBtn" type="button" title="Randomize layout" aria-label="Randomize layout">⟳</button>
         </div>
 
         <label class="field">
@@ -25,25 +23,15 @@
           <textarea id="sourceText" spellcheck="false" placeholder="Paste the full book or fanzine text here. Use the first line as a title."></textarea>
         </label>
 
-        <div class="upload-grid">
-          <label class="upload-field">
+        <label class="upload-field">
+          <span class="upload-field-icon">+</span>
+          <div class="upload-field-text">
             <span>Images</span>
             <strong>Add images</strong>
             <small id="imageCount">0 files</small>
-            <input id="imageInput" class="sr-only" type="file" accept="image/*" multiple />
-          </label>
-          <label class="upload-field">
-            <span>Fonts</span>
-            <strong>Add fonts</strong>
-            <small id="fontCount">0 files</small>
-            <input id="fontInput" class="sr-only" type="file" accept=".ttf,.otf,.woff,.woff2" multiple />
-          </label>
-        </div>
-
-        <div class="system-font-row">
-          <button class="secondary-button" id="systemFontBtn" type="button">Load system fonts</button>
-          <small id="systemFontStatus" aria-live="polite">Browser permission required</small>
-        </div>
+          </div>
+          <input id="imageInput" class="sr-only" type="file" accept="image/*" multiple />
+        </label>
 
         <div class="field-grid">
           <label class="field">
@@ -56,14 +44,19 @@
           </label>
         </div>
 
+        <div class="system-font-row">
+          <button class="link-button" id="systemFontBtn" type="button">Load system fonts</button>
+          <small id="systemFontStatus" aria-live="polite">Permission required</small>
+        </div>
+
         <div class="segmented" aria-label="Column count">
-          <button class="segment is-active" type="button" data-columns="1">1 column</button>
-          <button class="segment" type="button" data-columns="2">2 columns</button>
+          <button class="segment is-active" type="button" data-columns="1">1 col</button>
+          <button class="segment" type="button" data-columns="2">2 cols</button>
         </div>
 
         <div class="field-grid">
           <label class="field">
-            <span>Page count</span>
+            <span>Pages</span>
             <input id="pageCount" type="number" min="1" max="24" value="4" />
           </label>
           <label class="field">
@@ -84,12 +77,14 @@
 
         <label class="check-field">
           <input id="monoImages" type="checkbox" checked />
-          <span>Monochrome image treatment</span>
+          <span>Monochrome images</span>
         </label>
 
-        <div class="button-row">
+        <div class="action-row">
           <button class="primary-button" id="generateBtn" type="button">Generate</button>
-          <button class="secondary-button" id="printBtn" type="button">Create PDF</button>
+          <button class="icon-button" id="saveBtn" type="button" title="Save book" aria-label="Save book">↓</button>
+          <button class="icon-button" id="printBtn" type="button" title="Create PDF" aria-label="Create PDF">⎙</button>
+          <button class="icon-button" id="libraryBtn" type="button" title="My books" aria-label="My books">☰</button>
         </div>
 
         <div class="image-strip" id="imageStrip" aria-label="Uploaded images"></div>
@@ -128,6 +123,19 @@
         </div>
       </article>
     </template>
+
+    <div class="library-overlay" id="libraryOverlay" hidden aria-hidden="true">
+      <div class="library-panel" role="dialog" aria-modal="true" aria-label="My books">
+        <div class="library-header">
+          <div>
+            <p class="kicker">Library</p>
+            <strong>My books</strong>
+          </div>
+          <button class="icon-button" id="closeLibraryBtn" type="button" aria-label="Close library">✕</button>
+        </div>
+        <div class="library-books" id="libraryGrid"></div>
+      </div>
+    </div>
 
     <div class="print-root" id="printRoot" aria-hidden="true"></div>
 

@@ -1,6 +1,6 @@
 const state = {
   images: [],
-  customFonts: [],
+
   systemFonts: [],
   bodyEdits: new Map(),
   titleEdits: new Map(),
@@ -67,7 +67,6 @@ const palettes = ['#ff2a1c', '#0077ff', '#1f9d55', '#d01b8c', '#f08b00', '#20202
 const els = {
   text: document.querySelector('#sourceText'),
   imageInput: document.querySelector('#imageInput'),
-  fontInput: document.querySelector('#fontInput'),
   displayFont: document.querySelector('#displayFont'),
   bodyFont: document.querySelector('#bodyFont'),
   pageCount: document.querySelector('#pageCount'),
@@ -76,10 +75,12 @@ const els = {
   imageEnergy: document.querySelector('#imageEnergy'),
   monoImages: document.querySelector('#monoImages'),
   imageCount: document.querySelector('#imageCount'),
-  fontCount: document.querySelector('#fontCount'),
   systemFontBtn: document.querySelector('#systemFontBtn'),
   systemFontStatus: document.querySelector('#systemFontStatus'),
   generate: document.querySelector('#generateBtn'),
+  save: document.querySelector('#saveBtn'),
+  library: document.querySelector('#libraryBtn'),
+  closeLibrary: document.querySelector('#closeLibraryBtn'),
   randomize: document.querySelector('#randomizeBtn'),
   print: document.querySelector('#printBtn'),
   printRoot: document.querySelector('#printRoot'),
@@ -159,7 +160,7 @@ function phraseFromChunk(chunk) {
 }
 
 function allFonts() {
-  return [...builtInFonts, ...state.customFonts, ...state.systemFonts];
+  return [...builtInFonts, ...state.systemFonts];
 }
 
 function quoteFontFamily(name) {
@@ -188,7 +189,6 @@ function refreshFontSelects() {
     const previous = select.value;
     select.innerHTML = '';
     addFontGroup(select, 'Built in', builtInFonts);
-    addFontGroup(select, 'Uploaded', state.customFonts);
     addFontGroup(select, 'System', state.systemFonts);
 
     const fallback =
@@ -222,18 +222,6 @@ function readFiles(files, mapper) {
   );
 }
 
-function addCustomFont(file, url) {
-  const family = `UserFont_${state.customFonts.length}_${file.name.replace(/\W+/g, '_')}`;
-  const style = document.createElement('style');
-  style.textContent = `@font-face{font-family:${family};src:url("${url}");font-display:swap;}`;
-  document.head.append(style);
-  return {
-    id: `upload:${family}`,
-    label: file.name.replace(/\.(ttf|otf|woff2?|TTF|OTF|WOFF2?)$/, ''),
-    family,
-    role: 'custom',
-  };
-}
 
 function timeoutAfter(ms) {
   return new Promise((_, reject) => {
@@ -843,7 +831,213 @@ function fitPreview() {
   document.documentElement.style.setProperty('--page-scale', state.zoom);
 }
 
+// — Book library (IndexedDB) —
+
+const DB_NAME = 'blook-studio';
+const DB_VERSION = 1;
+const BOOK_STORE = 'books';
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(BOOK_STORE)) {
+        db.createObjectStore(BOOK_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbPut(record) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOOK_STORE, 'readwrite').objectStore(BOOK_STORE).put(record);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbList() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOOK_STORE, 'readonly').objectStore(BOOK_STORE).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbGet(id) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOOK_STORE, 'readonly').objectStore(BOOK_STORE).get(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbRemove(id) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction(BOOK_STORE, 'readwrite').objectStore(BOOK_STORE).delete(id);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function serializeBook() {
+  return {
+    id: Date.now(),
+    name: titleFromText(els.text.value) || 'Untitled',
+    savedAt: new Date().toISOString(),
+    text: els.text.value,
+    seed: state.seed,
+    columns: state.columns,
+    pageCountVal: els.pageCount.value,
+    typeScaleVal: els.typeScale.value,
+    imageEnergyVal: els.imageEnergy.value,
+    monoImages: els.monoImages.checked,
+    accentColor: els.accentColor.value,
+    displayFontId: els.displayFont.value,
+    bodyFontId: els.bodyFont.value,
+    bodyEdits: [...state.bodyEdits.entries()],
+    titleEdits: [...state.titleEdits.entries()],
+    imageEdits: [...state.imageEdits.entries()],
+    images: state.images,
+  };
+}
+
+async function saveCurrentBook() {
+  els.save.disabled = true;
+  await dbPut(serializeBook());
+  const orig = els.save.textContent;
+  els.save.textContent = 'Saved ✓';
+  setTimeout(() => {
+    els.save.textContent = orig;
+    els.save.disabled = false;
+  }, 1400);
+}
+
+async function loadBook(id) {
+  const record = await dbGet(id);
+  if (!record) return;
+
+  state.images = record.images || [];
+  makeImageStrip();
+  const imgCount = state.images.length;
+  els.imageCount.textContent = `${imgCount} file${imgCount !== 1 ? 's' : ''}`;
+
+  els.text.value = record.text || '';
+  els.pageCount.value = record.pageCountVal;
+  els.typeScale.value = record.typeScaleVal;
+  els.imageEnergy.value = record.imageEnergyVal;
+  els.monoImages.checked = record.monoImages;
+  els.accentColor.value = record.accentColor;
+  state.columns = record.columns;
+  state.seed = record.seed;
+
+  state.bodyEdits = new Map(record.bodyEdits || []);
+  state.titleEdits = new Map(record.titleEdits || []);
+  state.imageEdits = new Map(record.imageEdits || []);
+
+  refreshFontSelects();
+  if (record.displayFontId) els.displayFont.value = record.displayFontId;
+  if (record.bodyFontId) els.bodyFont.value = record.bodyFontId;
+
+  updateSegments();
+  closeLibrary();
+  render();
+}
+
+async function deleteBook(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  await dbRemove(id);
+  renderLibraryGrid();
+}
+
+function formatSavedDate(iso) {
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+async function renderLibraryGrid() {
+  const grid = document.querySelector('#libraryGrid');
+  grid.innerHTML = '';
+  const books = await dbList();
+
+  if (!books.length) {
+    const empty = document.createElement('p');
+    empty.className = 'library-empty';
+    empty.textContent = 'No saved books yet. Generate a layout and hit Save.';
+    grid.append(empty);
+    return;
+  }
+
+  books.sort((a, b) => b.id - a.id).forEach((book) => {
+    const card = document.createElement('div');
+    card.className = 'library-card';
+
+    const meta = document.createElement('div');
+    meta.className = 'library-card-meta';
+
+    const accent = document.createElement('div');
+    accent.className = 'library-card-accent';
+    accent.style.backgroundColor = book.accentColor || '#ff2a1c';
+
+    const title = document.createElement('strong');
+    title.className = 'library-card-title';
+    title.textContent = book.name;
+
+    const date = document.createElement('span');
+    date.className = 'library-card-date';
+    date.textContent = formatSavedDate(book.savedAt);
+
+    const stats = document.createElement('span');
+    stats.className = 'library-card-stats';
+    stats.textContent = `${book.pageCountVal || '?'} pages · ${(book.images || []).length} images`;
+
+    meta.append(accent, title, date, stats);
+
+    const actions = document.createElement('div');
+    actions.className = 'library-card-actions';
+
+    const loadBtn = document.createElement('button');
+    loadBtn.className = 'primary-button';
+    loadBtn.textContent = 'Load';
+    loadBtn.addEventListener('click', () => loadBook(book.id));
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'secondary-button delete-btn';
+    delBtn.textContent = 'Delete';
+    delBtn.addEventListener('click', () => deleteBook(book.id, book.name));
+
+    actions.append(loadBtn, delBtn);
+    card.append(meta, actions);
+    grid.append(card);
+  });
+}
+
+async function openLibrary() {
+  const overlay = document.querySelector('#libraryOverlay');
+  overlay.hidden = false;
+  overlay.removeAttribute('aria-hidden');
+  await renderLibraryGrid();
+}
+
+function closeLibrary() {
+  const overlay = document.querySelector('#libraryOverlay');
+  overlay.hidden = true;
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
 els.generate.addEventListener('click', render);
+els.save.addEventListener('click', saveCurrentBook);
+els.library.addEventListener('click', openLibrary);
+els.closeLibrary.addEventListener('click', closeLibrary);
+document.querySelector('#libraryOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeLibrary();
+});
 els.randomize.addEventListener('click', randomize);
 els.print.addEventListener('click', createBookletPdf);
 els.systemFontBtn.addEventListener('click', loadSystemFonts);
@@ -941,13 +1135,6 @@ els.imageInput.addEventListener('change', async (event) => {
   render();
 });
 
-els.fontInput.addEventListener('change', async (event) => {
-  const fonts = await readFiles(event.target.files, addCustomFont);
-  state.customFonts.push(...fonts);
-  els.fontCount.textContent = `${state.customFonts.length} file${state.customFonts.length === 1 ? '' : 's'}`;
-  refreshFontSelects();
-  render();
-});
 
 window.addEventListener('resize', () => {
   if (state.zoom < 1) fitPreview();

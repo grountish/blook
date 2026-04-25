@@ -52,23 +52,24 @@ button {
 .panel {
   background: var(--panel);
   border-right: 1px solid var(--line);
-  padding: 18px;
+  padding: 14px;
 }
 
 .controls {
+  top: 0;
+  z-index: 50;
+  position: sticky;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 9px;
   overflow: auto;
   max-height: 100vh;
 }
 
 .brand-row,
 .workspace-toolbar,
-.button-row,
 .toolbar-actions,
-.field-grid,
-.upload-grid {
+.field-grid {
   display: flex;
   gap: 10px;
 }
@@ -80,8 +81,8 @@ button {
 }
 
 .brand-row h1 {
-  margin: 2px 0 0;
-  font-size: 1.06rem;
+  margin: 1px 0 0;
+  font-size: 0.95rem;
   line-height: 1.1;
   letter-spacing: 0;
 }
@@ -99,15 +100,16 @@ button {
 .range-field,
 .check-field {
   display: grid;
-  gap: 7px;
+  gap: 5px;
 }
 
 .field span,
 .range-field span {
   color: var(--muted);
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 textarea,
@@ -132,16 +134,18 @@ select:focus {
 }
 
 textarea {
-  min-height: 230px;
-  padding: 12px;
+  min-height: 140px;
+  padding: 10px;
   resize: vertical;
   line-height: 1.45;
+  font-size: 0.9rem;
 }
 
 input,
 select {
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 5px 9px;
+  font-size: 0.9rem;
 }
 
 input[type="color"] {
@@ -157,21 +161,19 @@ input[type="range"] {
   align-items: start;
 }
 
-.field-grid > *,
-.upload-grid > * {
+.field-grid>* {
   flex: 1;
   min-width: 0;
 }
 
 .upload-field {
-  display: grid;
-  min-height: 76px;
-  gap: 3px;
-  align-content: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #fbfaf6;
-  padding: 10px 11px;
+  padding: 9px 12px;
   cursor: pointer;
 }
 
@@ -179,21 +181,35 @@ input[type="range"] {
   border-color: var(--ink);
 }
 
+.upload-field-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.upload-field-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
 .upload-field span {
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.67rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .upload-field strong {
   overflow: hidden;
-  font-size: 0.93rem;
+  font-size: 0.88rem;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .upload-field small {
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -218,13 +234,14 @@ input[type="range"] {
 }
 
 .segment {
-  min-height: 38px;
+  min-height: 32px;
+  font-size: 0.85rem;
   border: 0;
   background: #f8f5ee;
   color: var(--muted);
 }
 
-.segment + .segment {
+.segment+.segment {
   border-left: 1px solid var(--line);
 }
 
@@ -249,30 +266,164 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
-.button-row {
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 36px 36px 36px;
+  gap: 6px;
+}
+
+.library-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(20, 18, 14, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.library-overlay[hidden] {
+  display: none;
+}
+
+.library-panel {
+  background: var(--panel);
+  border-radius: 10px;
+  width: min(820px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+
+.library-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.library-header strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.95rem;
+}
+
+.library-books {
+  overflow: auto;
+  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+  align-content: start;
+}
+
+.library-empty {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 40px 0;
+  margin: 0;
+}
+
+.library-card {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.library-card-meta {
+  display: grid;
+  gap: 3px;
+}
+
+.library-card-accent {
+  width: 28px;
+  height: 4px;
+  border-radius: 2px;
+  margin-bottom: 5px;
+}
+
+.library-card-title {
+  font-size: 0.9rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.library-card-date,
+.library-card-stats {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.library-card-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.library-card-actions .primary-button,
+.library-card-actions .secondary-button {
+  min-height: 34px;
+  font-size: 0.85rem;
+}
+
+.delete-btn {
+  border-color: var(--line);
+  color: var(--muted);
 }
 
 .system-font-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .system-font-row small {
   color: var(--muted);
-  font-size: 0.76rem;
-  line-height: 1.25;
-  text-align: right;
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+
+.link-button {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.link-button:hover {
+  color: var(--ink);
+}
+
+.link-button:disabled {
+  cursor: wait;
+  opacity: 0.5;
 }
 
 .primary-button,
 .secondary-button,
 .icon-button,
 .tool-button {
-  min-height: 40px;
+  min-height: 36px;
   border: 1px solid var(--ink);
   border-radius: 6px;
   transition: transform 0.12s ease, background 0.12s ease;
@@ -299,9 +450,10 @@ input[type="range"] {
 .tool-button {
   display: grid;
   place-items: center;
-  width: 42px;
+  width: 36px;
   flex: 0 0 auto;
-  font-weight: 800;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
 .primary-button:hover,
@@ -656,9 +808,9 @@ input[type="range"] {
 }
 
 @media (max-width: 560px) {
+
   .field-grid,
-  .upload-grid,
-  .button-row {
+  .action-row {
     grid-template-columns: 1fr;
     display: grid;
   }
@@ -675,13 +827,6 @@ input[type="range"] {
     align-items: start;
   }
 
-  .system-font-row {
-    grid-template-columns: 1fr;
-  }
-
-  .system-font-row small {
-    text-align: left;
-  }
 }
 
 @media print {
@@ -782,4 +927,3 @@ input[type="range"] {
 figure {
   z-index: 2 !important;
 }
-
