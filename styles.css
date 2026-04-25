@@ -753,6 +753,18 @@ input[type="range"] {
   opacity: 1;
 }
 
+.point {
+  position: absolute;
+  z-index: 4;
+  background: var(--ink);
+  opacity: 0.38;
+  border-radius: 100%;
+}
+.point.red {
+  background: var(--page-accent);
+  opacity: 1;
+}
+
 .book-page[data-layout="schematic"] .image-block:first-of-type::after {
   content: "";
   position: absolute;

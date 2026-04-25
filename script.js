@@ -222,7 +222,6 @@ function readFiles(files, mapper) {
   );
 }
 
-
 function timeoutAfter(ms) {
   return new Promise((_, reject) => {
     window.setTimeout(() => reject(new Error('Font access timed out')), ms);
@@ -333,6 +332,21 @@ function addRules(page, rand, accent) {
     rule.style.height = horizontal ? '1px' : `${6 + rand() * 28}%`;
     rule.style.backgroundColor = rule.classList.contains('red') ? accent : '';
     page.append(rule);
+  }
+}
+function addPoints(page, rand, accent) {
+  const count = 2 + Math.floor(rand() * 2);
+  for (let i = 0; i < count; i += 1) {
+    const point = document.createElement('span');
+    point.className = `point ${rand() > 0.78 ? 'red' : ''}`;
+    const horizontal = rand() > 0.34;
+    point.style.left = `${2 + rand() * 32}%`;
+    point.style.top = `${6 + rand() * 54}%`;
+    const fixRandom = rand() * 1 + 0.77;
+    point.style.width = `${fixRandom * 2}px`;
+    point.style.height = `${fixRandom * 2}px`;
+    point.style.backgroundColor = point.classList.contains('red') ? accent : '';
+    page.append(point);
   }
 }
 
@@ -749,7 +763,7 @@ function renderPage(chunk, index, total, settings, rand) {
   page.append(caption);
 
   addRules(page, rand, settings.accent);
-
+  addPoints(page, rand, settings.accent);
   return page;
 }
 
@@ -958,7 +972,11 @@ async function deleteBook(id, name) {
 }
 
 function formatSavedDate(iso) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 async function renderLibraryGrid() {
@@ -974,48 +992,50 @@ async function renderLibraryGrid() {
     return;
   }
 
-  books.sort((a, b) => b.id - a.id).forEach((book) => {
-    const card = document.createElement('div');
-    card.className = 'library-card';
+  books
+    .sort((a, b) => b.id - a.id)
+    .forEach((book) => {
+      const card = document.createElement('div');
+      card.className = 'library-card';
 
-    const meta = document.createElement('div');
-    meta.className = 'library-card-meta';
+      const meta = document.createElement('div');
+      meta.className = 'library-card-meta';
 
-    const accent = document.createElement('div');
-    accent.className = 'library-card-accent';
-    accent.style.backgroundColor = book.accentColor || '#ff2a1c';
+      const accent = document.createElement('div');
+      accent.className = 'library-card-accent';
+      accent.style.backgroundColor = book.accentColor || '#ff2a1c';
 
-    const title = document.createElement('strong');
-    title.className = 'library-card-title';
-    title.textContent = book.name;
+      const title = document.createElement('strong');
+      title.className = 'library-card-title';
+      title.textContent = book.name;
 
-    const date = document.createElement('span');
-    date.className = 'library-card-date';
-    date.textContent = formatSavedDate(book.savedAt);
+      const date = document.createElement('span');
+      date.className = 'library-card-date';
+      date.textContent = formatSavedDate(book.savedAt);
 
-    const stats = document.createElement('span');
-    stats.className = 'library-card-stats';
-    stats.textContent = `${book.pageCountVal || '?'} pages · ${(book.images || []).length} images`;
+      const stats = document.createElement('span');
+      stats.className = 'library-card-stats';
+      stats.textContent = `${book.pageCountVal || '?'} pages · ${(book.images || []).length} images`;
 
-    meta.append(accent, title, date, stats);
+      meta.append(accent, title, date, stats);
 
-    const actions = document.createElement('div');
-    actions.className = 'library-card-actions';
+      const actions = document.createElement('div');
+      actions.className = 'library-card-actions';
 
-    const loadBtn = document.createElement('button');
-    loadBtn.className = 'primary-button';
-    loadBtn.textContent = 'Load';
-    loadBtn.addEventListener('click', () => loadBook(book.id));
+      const loadBtn = document.createElement('button');
+      loadBtn.className = 'primary-button';
+      loadBtn.textContent = 'Load';
+      loadBtn.addEventListener('click', () => loadBook(book.id));
 
-    const delBtn = document.createElement('button');
-    delBtn.className = 'secondary-button delete-btn';
-    delBtn.textContent = 'Delete';
-    delBtn.addEventListener('click', () => deleteBook(book.id, book.name));
+      const delBtn = document.createElement('button');
+      delBtn.className = 'secondary-button delete-btn';
+      delBtn.textContent = 'Delete';
+      delBtn.addEventListener('click', () => deleteBook(book.id, book.name));
 
-    actions.append(loadBtn, delBtn);
-    card.append(meta, actions);
-    grid.append(card);
-  });
+      actions.append(loadBtn, delBtn);
+      card.append(meta, actions);
+      grid.append(card);
+    });
 }
 
 async function openLibrary() {
@@ -1134,7 +1154,6 @@ els.imageInput.addEventListener('change', async (event) => {
   makeImageStrip();
   render();
 });
-
 
 window.addEventListener('resize', () => {
   if (state.zoom < 1) fitPreview();
