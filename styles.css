@@ -578,6 +578,8 @@ input[type="range"] {
   top: 34%;
   max-width: 78%;
   font-size: calc(34px * var(--type-scale, 1));
+  letter-spacing: calc(0.12em * var(--type-spacing,
+        3));
 }
 
 .cover-page .cover-text {
@@ -589,6 +591,8 @@ input[type="range"] {
   color: var(--ink);
   font-family: var(--body-font);
   font-size: calc(10px * var(--type-scale, 1));
+  letter-spacing: calc(0.12em * var(--type-spacing,
+        3));
   line-height: 1.5;
   white-space: pre-wrap;
 }
@@ -602,6 +606,8 @@ input[type="range"] {
   position: absolute;
   z-index: 6;
   font-size: calc(8px * var(--type-scale, 1));
+  letter-spacing: calc(0.12em * var(--type-spacing,
+        3));
   color: var(--muted);
 }
 
@@ -631,6 +637,7 @@ input[type="range"] {
 .text-zone p {
   margin: 0;
   font-size: calc(var(--body-size, 12px) * var(--type-scale, 1));
+  letter-spacing: calc(0.02em * var(--type-spacing, 1)) !important;
   line-height: var(--body-leading, 1.45);
   white-space: pre-wrap;
 }
@@ -821,6 +828,7 @@ input[type="range"] {
   opacity: 0.38;
   border-radius: 100%;
 }
+
 .point.red {
   background: var(--page-accent);
   opacity: 1;

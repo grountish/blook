@@ -74,6 +74,7 @@ const els = {
   pageCount: document.querySelector('#pageCount'),
   accentColor: document.querySelector('#accentColor'),
   typeScale: document.querySelector('#typeScale'),
+  typeSpacing: document.querySelector('#typeSpacing'),
   imageEnergy: document.querySelector('#imageEnergy'),
   monoImages: document.querySelector('#monoImages'),
   imageCount: document.querySelector('#imageCount'),
@@ -492,10 +493,10 @@ function startTextZoneDrag(event) {
 
   const pageRect = page.getBoundingClientRect();
   const zoneRect = textZone.getBoundingClientRect();
-  const left = (zoneRect.left - pageRect.left) / pageRect.width * 100;
-  const top = (zoneRect.top - pageRect.top) / pageRect.height * 100;
-  const width = zoneRect.width / pageRect.width * 100;
-  const height = zoneRect.height / pageRect.height * 100;
+  const left = ((zoneRect.left - pageRect.left) / pageRect.width) * 100;
+  const top = ((zoneRect.top - pageRect.top) / pageRect.height) * 100;
+  const width = (zoneRect.width / pageRect.width) * 100;
+  const height = (zoneRect.height / pageRect.height) * 100;
 
   state.draggedZone = {
     textZone,
@@ -714,6 +715,7 @@ function renderCoverPage(settings) {
   page.style.setProperty('--display-font', settings.displayFont);
   page.style.setProperty('--body-font', settings.bodyFont);
   page.style.setProperty('--type-scale', settings.typeScale);
+  page.style.setProperty('--type-spacing', settings.typeSpacing);
   page.style.setProperty('--page-accent', settings.accent);
 
   const display = document.createElement('h2');
@@ -754,6 +756,7 @@ function renderPage(chunk, index, total, settings, rand) {
   page.dataset.layout = recipe.layout;
   page.style.setProperty('--display-font', settings.displayFont);
   page.style.setProperty('--type-scale', settings.typeScale);
+  page.style.setProperty('--type-spacing', settings.typeSpacing);
   page.style.setProperty('--body-size', `${settings.bodySize}px`);
   page.style.setProperty('--body-leading', settings.leading);
   page.style.setProperty('--page-accent', settings.accent);
@@ -865,6 +868,7 @@ function renderPage(chunk, index, total, settings, rand) {
 function currentSettings() {
   const pageCount = clamp(Number(els.pageCount.value) || 4, 1, 24);
   const typeScale = Number(els.typeScale.value) || 1;
+  const typeSpacing = Number(els.typeSpacing.value) || 1;
   const displayFont = cssFont(els.displayFont.value);
   const bodyFont = cssFont(els.bodyFont.value);
   return {
@@ -872,6 +876,7 @@ function currentSettings() {
     columns: state.columns,
     accent: els.accentColor.value,
     typeScale,
+    typeSpacing,
     imageEnergy: Number(els.imageEnergy.value) || 0,
     monoImages: els.monoImages.checked,
     displayFont,
@@ -894,7 +899,7 @@ function render() {
     updateEditTextMode();
     return;
   }
-
+  console.log('render');
   const rand = seededRandom(state.seed);
   const total = settings.pageCount;
   els.pages.append(renderCoverPage(settings));
@@ -911,12 +916,15 @@ function randomize() {
   const fonts = allFonts();
   clearPageTextEdits();
   clearImageEdits();
+  const x = rand();
+  console.log(String((0.82 + rand() * 2).toFixed(2)));
   state.seed = Math.floor(rand() * 1000000);
   state.columns = rand() > 0.48 ? 2 : 1;
   els.displayFont.value = pick(fonts, rand).id;
   els.bodyFont.value = pick(fonts, rand).id;
   els.pageCount.value = String(pick([2, 4, 6, 8, 10, 12], rand));
-  els.typeScale.value = String((0.82 + rand() * 0.46).toFixed(2));
+  els.typeScale.value = String((0.52 + rand() * 2).toFixed(2));
+  els.typeSpacing.value = Number((0.82 + rand() * 2).toFixed(2)) - 0.3;
   els.imageEnergy.value = String(Math.floor(35 + rand() * 64));
   els.accentColor.value = pick(palettes, rand);
   els.monoImages.checked = rand() > 0.28;
@@ -1006,6 +1014,7 @@ function serializeBook() {
     columns: state.columns,
     pageCountVal: els.pageCount.value,
     typeScaleVal: els.typeScale.value,
+    typeSpacingVal: els.typeSpacing.value,
     imageEnergyVal: els.imageEnergy.value,
     monoImages: els.monoImages.checked,
     accentColor: els.accentColor.value,
@@ -1042,6 +1051,7 @@ async function loadBook(id) {
   els.text.value = record.text || '';
   els.pageCount.value = record.pageCountVal;
   els.typeScale.value = record.typeScaleVal;
+  els.typeSpacing.value = record.typeSpacingVal;
   els.imageEnergy.value = record.imageEnergyVal;
   els.monoImages.checked = record.monoImages;
   els.accentColor.value = record.accentColor;
@@ -1201,6 +1211,7 @@ for (const el of [
   els.pageCount,
   els.accentColor,
   els.typeScale,
+  els.typeSpacing,
   els.imageEnergy,
   els.monoImages,
   els.displayFont,
