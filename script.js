@@ -68,6 +68,7 @@ const palettes = ['#ff2a1c', '#0077ff', '#1f9d55', '#d01b8c', '#f08b00', '#20202
 
 const els = {
   text: document.querySelector('#sourceText'),
+  keywords: document.querySelector('#sourceKeywords'),
   imageInput: document.querySelector('#imageInput'),
   displayFont: document.querySelector('#displayFont'),
   bodyFont: document.querySelector('#bodyFont'),
@@ -414,16 +415,26 @@ function applyImageEdit(figure, index, slot) {
   figure.dataset.pageIndex = String(index);
   figure.dataset.imageSlot = slot;
 
+  const resizer = document.createElement('div');
+  resizer.className = 'zone-resize-handle';
+  resizer.setAttribute('aria-hidden', 'true');
+  figure.append(resizer);
+
   const edit = state.imageEdits.get(imageEditKey(index, slot));
   if (!edit) return;
 
   figure.style.left = `${edit.left}%`;
   figure.style.top = `${edit.top}%`;
+  if (edit.width) figure.style.width = `${edit.width}%`;
+  if (edit.height) figure.style.height = `${edit.height}%`;
 }
 
 function startImageDrag(event) {
+  if (!state.editingText) return;
+
+  const resizer = event.target.closest('.zone-resize-handle');
   const figure = event.target.closest('.movable-image');
-  if (!figure || !state.editingText) return;
+  if (!figure) return;
 
   const page = figure.closest('.book-page');
   if (!page) return;
@@ -439,8 +450,15 @@ function startImageDrag(event) {
   state.draggedImage = {
     figure,
     pageRect,
+    mode: resizer ? 'resize' : 'move',
     offsetX: event.clientX - figureRect.left,
     offsetY: event.clientY - figureRect.top,
+    startX: event.clientX,
+    startY: event.clientY,
+    startWidth: width,
+    startHeight: height,
+    startLeft: ((figureRect.left - pageRect.left) / pageRect.width) * 100,
+    startTop: ((figureRect.top - pageRect.top) / pageRect.height) * 100,
     width,
     height,
     key: imageEditKey(figure.dataset.pageIndex, figure.dataset.imageSlot),
@@ -454,20 +472,38 @@ function moveDraggedImage(event) {
   if (!state.draggedImage) return;
 
   const drag = state.draggedImage;
-  const left = clamp(
-    ((event.clientX - drag.pageRect.left - drag.offsetX) / drag.pageRect.width) * 100,
-    0,
-    100 - drag.width,
-  );
-  const top = clamp(
-    ((event.clientY - drag.pageRect.top - drag.offsetY) / drag.pageRect.height) * 100,
-    0,
-    100 - drag.height,
-  );
 
-  drag.figure.style.left = `${left}%`;
-  drag.figure.style.top = `${top}%`;
-  state.imageEdits.set(drag.key, { left, top });
+  if (drag.mode === 'move') {
+    const left = clamp(
+      ((event.clientX - drag.pageRect.left - drag.offsetX) / drag.pageRect.width) * 100,
+      0,
+      100 - drag.width,
+    );
+    const top = clamp(
+      ((event.clientY - drag.pageRect.top - drag.offsetY) / drag.pageRect.height) * 100,
+      0,
+      100 - drag.height,
+    );
+
+    drag.figure.style.left = `${left}%`;
+    drag.figure.style.top = `${top}%`;
+    state.imageEdits.set(drag.key, { left, top, width: drag.width, height: drag.height });
+  } else {
+    const dx = ((event.clientX - drag.startX) / drag.pageRect.width) * 100;
+    const dy = ((event.clientY - drag.startY) / drag.pageRect.height) * 100;
+
+    const width = clamp(drag.startWidth + dx, 5, 96);
+    const height = clamp(drag.startHeight + dy, 5, 92);
+
+    drag.figure.style.width = `${width}%`;
+    drag.figure.style.height = `${height}%`;
+    state.imageEdits.set(drag.key, {
+      left: drag.startLeft,
+      top: drag.startTop,
+      width,
+      height,
+    });
+  }
 }
 
 function stopImageDrag() {
@@ -750,6 +786,7 @@ function renderBackCoverPage(settings) {
 }
 
 function renderPage(chunk, index, total, settings, rand) {
+  console.log(rand());
   const page = document.createElement('article');
   const recipe = layoutRecipe(index, rand, settings);
   page.className = 'book-page';
@@ -806,7 +843,7 @@ function renderPage(chunk, index, total, settings, rand) {
   }
 
   const display = document.createElement('h2');
-  display.className = `display-line ${recipe.outline ? 'outline' : ''} ${recipe.blackTitle ? 'black' : ''}`;
+  display.className = `display-line ${rand() > 0.5 ? 'inverted-blend' : ''} ${recipe.outline ? 'outline' : ''} ${recipe.blackTitle ? 'black' : ''}`;
   if (state.titleEdits.has(index)) {
     display.innerHTML = state.titleEdits.get(index);
   } else {
@@ -855,7 +892,11 @@ function renderPage(chunk, index, total, settings, rand) {
 
   const caption = document.createElement('span');
   caption.className = 'caption';
-  caption.textContent = pick(['index', 'source', 'fragment', 'plate', 'scan', 'note'], rand);
+  const keywords = els.keywords.value
+    .trim()
+    .split(/\s*,\s*/)
+    .filter(Boolean);
+  caption.textContent = pick(keywords, rand);
   caption.style.left = `${clamp(recipe.image.left + 1, 4, 88)}%`;
   caption.style.top = `${clamp(recipe.image.top + recipe.image.height + 1, 5, 92)}%`;
   page.append(caption);
@@ -899,7 +940,6 @@ function render() {
     updateEditTextMode();
     return;
   }
-  console.log('render');
   const rand = seededRandom(state.seed);
   const total = settings.pageCount;
   els.pages.append(renderCoverPage(settings));
@@ -917,7 +957,6 @@ function randomize() {
   clearPageTextEdits();
   clearImageEdits();
   const x = rand();
-  console.log(String((0.82 + rand() * 2).toFixed(2)));
   state.seed = Math.floor(rand() * 1000000);
   state.columns = rand() > 0.48 ? 2 : 1;
   els.displayFont.value = pick(fonts, rand).id;

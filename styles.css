@@ -188,7 +188,7 @@ input[type="range"] {
 }
 
 .upload-field-text {
-  display: grid;
+  display: flex;
   gap: 1px;
   min-width: 0;
 }
@@ -230,7 +230,7 @@ input[type="range"] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   border: 1px solid var(--line);
   border-radius: 6px;
-  overflow: hidden;
+  /* overflow: hidden; */
 }
 
 .segment {
@@ -582,6 +582,11 @@ input[type="range"] {
         3));
 }
 
+.inverted-blend {
+  filter: invert(1);
+  mix-blend-mode: difference;
+}
+
 .cover-page .cover-text {
   position: absolute;
   left: 11%;
@@ -716,9 +721,9 @@ input[type="range"] {
   mix-blend-mode: multiply;
 }
 
-.image-block.line {
+/* .image-block.line {
   border: 1px solid rgba(0, 0, 0, 0.42);
-}
+} */
 
 .image-block.rotate-left {
   transform: rotate(-1.2deg);
