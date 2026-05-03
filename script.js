@@ -1,7 +1,20 @@
+const FAVORITE_FONTS_KEY = 'blook-favorite-fonts';
+const TEXTURE_BACKGROUND_KEY = 'blook-apply-textures';
+const TEXTURE_POOL_KEY = 'blook-texture-pool';
+
+const textureImages = [
+  'textures/texture1.jpg',
+  'textures/texture2.jpg',
+  'textures/texture3.jpg',
+  'textures/texture4.jpg',
+  'textures/texture5.jpg',
+];
+
 const state = {
   images: [],
 
   systemFonts: [],
+  favoriteFontPresets: readFavoriteFontPresets(),
   bodyEdits: new Map(),
   titleEdits: new Map(),
   imageEdits: new Map(),
@@ -14,6 +27,9 @@ const state = {
   columns: 2,
   seed: Math.floor(Math.random() * 100000),
   zoom: 1,
+  activeFavoritePresetId: '',
+  applyTextures: readTexturePreference(),
+  texturePool: readTexturePool(),
 };
 
 const builtInFonts = [
@@ -78,9 +94,15 @@ const els = {
   typeSpacing: document.querySelector('#typeSpacing'),
   imageEnergy: document.querySelector('#imageEnergy'),
   monoImages: document.querySelector('#monoImages'),
+  applyTextures: document.querySelector('#applyTextures'),
   imageCount: document.querySelector('#imageCount'),
+  textureStrip: document.querySelector('#textureStrip'),
   systemFontBtn: document.querySelector('#systemFontBtn'),
   systemFontStatus: document.querySelector('#systemFontStatus'),
+  favoriteFontBtn: document.querySelector('#favoriteFontBtn'),
+  favoriteFontStatus: document.querySelector('#favoriteFontStatus'),
+  favoriteFontsSelect: document.querySelector('#favoriteFontsSelect'),
+  removeFavoriteFontBtn: document.querySelector('#removeFavoriteFontBtn'),
   generate: document.querySelector('#generateBtn'),
   save: document.querySelector('#saveBtn'),
   library: document.querySelector('#libraryBtn'),
@@ -118,6 +140,43 @@ function pick(items, rand) {
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
+}
+
+function readTexturePreference() {
+  try {
+    return window.localStorage.getItem(TEXTURE_BACKGROUND_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeTexturePreference(enabled) {
+  try {
+    window.localStorage.setItem(TEXTURE_BACKGROUND_KEY, String(Boolean(enabled)));
+  } catch {}
+}
+
+function readTexturePool() {
+  try {
+    const raw = window.localStorage.getItem(TEXTURE_POOL_KEY);
+    if (!raw) return textureImages.map((texture) => ({ src: texture, active: true }));
+
+    const parsed = JSON.parse(raw);
+    const activeSet = new Set(Array.isArray(parsed) ? parsed : []);
+    return textureImages.map((texture) => ({
+      src: texture,
+      active: activeSet.has(texture),
+    }));
+  } catch {
+    return textureImages.map((texture) => ({ src: texture, active: true }));
+  }
+}
+
+function writeTexturePool() {
+  try {
+    const activeTextures = state.texturePool.filter((item) => item.active).map((item) => item.src);
+    window.localStorage.setItem(TEXTURE_POOL_KEY, JSON.stringify(activeTextures));
+  } catch {}
 }
 
 function splitText(text, pageCount) {
@@ -164,7 +223,148 @@ function phraseFromChunk(chunk) {
 }
 
 function allFonts() {
-  return [...builtInFonts, ...state.systemFonts];
+  const fonts = [...favoriteFontPool(), ...builtInFonts, ...state.systemFonts];
+  const unique = new Map();
+  fonts.forEach((font) => {
+    if (!font?.id || unique.has(font.id)) return;
+    unique.set(font.id, font);
+  });
+  return [...unique.values()];
+}
+
+function normalizeFontRecord(font) {
+  if (!font?.id || !font?.label || !font?.family) return null;
+  return {
+    id: font.id,
+    label: font.label,
+    family: font.family,
+    role: font.role || 'system',
+  };
+}
+
+function normalizeFavoritePreset(preset) {
+  if (!preset || typeof preset !== 'object') return null;
+
+  const display = normalizeFontRecord(preset.display);
+  const body = normalizeFontRecord(preset.body);
+  if (!display && !body) return null;
+
+  return {
+    id: preset.id || `${display?.id || 'none'}|${body?.id || 'none'}`,
+    display,
+    body,
+    savedAt: preset.savedAt || new Date().toISOString(),
+  };
+}
+
+function readFavoriteFontPresets() {
+  try {
+    const raw = window.localStorage.getItem(FAVORITE_FONTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map(normalizeFavoritePreset).filter(Boolean);
+    }
+
+    if (Array.isArray(parsed?.items)) {
+      return parsed.items.map(normalizeFavoritePreset).filter(Boolean);
+    }
+
+    const legacy = normalizeFavoritePreset(parsed);
+    return legacy ? [legacy] : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeFavoriteFontPresets(favoriteFontPresets) {
+  try {
+    window.localStorage.setItem(FAVORITE_FONTS_KEY, JSON.stringify(favoriteFontPresets));
+  } catch {}
+}
+
+function favoriteFontPool() {
+  const fonts = [];
+  state.favoriteFontPresets.forEach((preset) => {
+    if (preset.display) fonts.push(preset.display);
+    if (preset.body) fonts.push(preset.body);
+  });
+
+  const unique = new Map();
+  fonts.forEach((font) => {
+    if (!font?.id || unique.has(font.id)) return;
+    unique.set(font.id, font);
+  });
+  return [...unique.values()];
+}
+
+function filterFontsById(fonts, excludedIds = new Set()) {
+  return fonts.filter((font) => font?.id && !excludedIds.has(font.id));
+}
+
+function favoriteFontSummary() {
+  const count = state.favoriteFontPresets.length;
+  if (!count) return 'No favorites saved';
+  return `${count} favorite font set${count === 1 ? '' : 's'} saved`;
+}
+
+function updateFavoriteFontStatus(message = null) {
+  els.favoriteFontStatus.textContent = message || favoriteFontSummary();
+}
+
+function updateTextureMode() {
+  state.applyTextures = Boolean(els.applyTextures.checked);
+  document.body.classList.toggle('has-textures', state.applyTextures);
+  writeTexturePreference(state.applyTextures);
+}
+
+function activeTextures() {
+  return state.texturePool.filter((item) => item.active).map((item) => item.src);
+}
+
+function favoritePresetLabel(preset) {
+  const display = preset.display?.label || 'Display font';
+  const body = preset.body?.label || 'Text font';
+  return `${display} / ${body}`;
+}
+
+function textureForKey(key) {
+  const textures = activeTextures();
+  if (!textures.length) return null;
+
+  let hash = 2166136261;
+  const input = `${state.seed}:${key}`;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return textures[Math.abs(hash) % textures.length];
+}
+
+function applyTextureToPage(page, key) {
+  const texture = textureForKey(key);
+  page.style.setProperty('--page-texture-image', texture ? `url("${texture}")` : 'none');
+}
+
+function renderTextureStrip() {
+  const strip = els.textureStrip;
+  strip.innerHTML = '';
+
+  state.texturePool.forEach((texture, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `thumb texture-thumb ${texture.active ? 'is-active' : ''}`;
+    button.setAttribute('aria-pressed', String(texture.active));
+    button.title = texture.src.split('/').pop();
+    button.style.backgroundImage = `url("${texture.src}")`;
+    button.addEventListener('click', () => {
+      state.texturePool[index].active = !state.texturePool[index].active;
+      writeTexturePool();
+      renderTextureStrip();
+      render();
+    });
+    strip.append(button);
+  });
 }
 
 function quoteFontFamily(name) {
@@ -189,16 +389,104 @@ function addFontGroup(select, label, fonts) {
 }
 
 function refreshFontSelects() {
+  const favoriteFonts = favoriteFontPool();
+  const favoriteIds = new Set(favoriteFonts.map((font) => font.id));
+  const builtIn = filterFontsById(builtInFonts, favoriteIds);
+  const system = filterFontsById(state.systemFonts, new Set([...favoriteIds, ...builtIn.map((font) => font.id)]));
+
   for (const select of [els.displayFont, els.bodyFont]) {
     const previous = select.value;
     select.innerHTML = '';
-    addFontGroup(select, 'Built in', builtInFonts);
-    addFontGroup(select, 'System', state.systemFonts);
+    addFontGroup(select, 'Favorites', favoriteFonts);
+    addFontGroup(select, 'Built in', builtIn);
+    addFontGroup(select, 'System', system);
 
     const fallback =
       select === els.displayFont ? 'builtin:condensed-grotesk' : 'builtin:futurist-mono';
     select.value = allFonts().some((font) => font.id === previous) ? previous : fallback;
   }
+}
+
+function renderFavoriteFontSelect() {
+  const select = els.favoriteFontsSelect;
+  const presets = state.favoriteFontPresets;
+  select.innerHTML = '';
+
+  if (!presets.length) {
+    const option = document.createElement('option');
+    option.value = '';
+    option.textContent = 'No favorites saved';
+    select.append(option);
+    select.disabled = true;
+    els.removeFavoriteFontBtn.disabled = true;
+    state.activeFavoritePresetId = '';
+    return;
+  }
+
+  select.disabled = false;
+  els.removeFavoriteFontBtn.disabled = false;
+
+  presets.forEach((preset) => {
+    const option = document.createElement('option');
+    option.value = preset.id;
+    option.textContent = favoritePresetLabel(preset);
+    select.append(option);
+  });
+
+  const activeId =
+    presets.some((preset) => preset.id === state.activeFavoritePresetId)
+      ? state.activeFavoritePresetId
+      : presets[0].id;
+  state.activeFavoritePresetId = activeId;
+  select.value = activeId;
+}
+
+function saveFavoriteFonts() {
+  const display = normalizeFontRecord(allFonts().find((font) => font.id === els.displayFont.value));
+  const body = normalizeFontRecord(allFonts().find((font) => font.id === els.bodyFont.value));
+  if (!display && !body) return;
+
+  const preset = normalizeFavoritePreset({ display, body });
+  if (!preset) return;
+
+  state.favoriteFontPresets = [
+    preset,
+    ...state.favoriteFontPresets.filter((item) => item.id !== preset.id),
+  ];
+  state.activeFavoritePresetId = preset.id;
+  writeFavoriteFontPresets(state.favoriteFontPresets);
+  refreshFontSelects();
+  renderFavoriteFontSelect();
+  updateFavoriteFontStatus('Favorite saved');
+  window.setTimeout(() => updateFavoriteFontStatus(), 1400);
+}
+
+function applyFavoriteFontPresetById(id) {
+  const preset = state.favoriteFontPresets.find((item) => item.id === id);
+  if (!preset) return;
+
+  state.activeFavoritePresetId = id;
+
+  if (preset.display && allFonts().some((font) => font.id === preset.display.id)) {
+    els.displayFont.value = preset.display.id;
+  }
+
+  if (preset.body && allFonts().some((font) => font.id === preset.body.id)) {
+    els.bodyFont.value = preset.body.id;
+  }
+
+  render();
+}
+
+function removeFavoriteFontPreset(id = state.activeFavoritePresetId) {
+  if (!id) return;
+
+  state.favoriteFontPresets = state.favoriteFontPresets.filter((preset) => preset.id !== id);
+  state.activeFavoritePresetId = state.favoriteFontPresets[0]?.id || '';
+  writeFavoriteFontPresets(state.favoriteFontPresets);
+  refreshFontSelects();
+  renderFavoriteFontSelect();
+  updateFavoriteFontStatus();
 }
 
 function makeImageStrip() {
@@ -263,6 +551,7 @@ async function loadSystemFonts() {
     state.systemFonts = [...families.values()].sort((a, b) => a.label.localeCompare(b.label));
     els.systemFontStatus.textContent = `${state.systemFonts.length} fonts loaded`;
     refreshFontSelects();
+    renderFavoriteFontSelect();
     render();
   } catch (error) {
     if (error.message === 'Font access timed out') {
@@ -753,6 +1042,7 @@ function renderCoverPage(settings) {
   page.style.setProperty('--type-scale', settings.typeScale);
   page.style.setProperty('--type-spacing', settings.typeSpacing);
   page.style.setProperty('--page-accent', settings.accent);
+  applyTextureToPage(page, 'cover');
 
   const display = document.createElement('h2');
   display.className = 'display-line cover-title';
@@ -782,11 +1072,11 @@ function renderBackCoverPage(settings) {
   const page = document.createElement('article');
   page.className = 'book-page back-cover';
   page.style.setProperty('--page-accent', settings.accent);
+  applyTextureToPage(page, 'back-cover');
   return page;
 }
 
 function renderPage(chunk, index, total, settings, rand) {
-  console.log(rand());
   const page = document.createElement('article');
   const recipe = layoutRecipe(index, rand, settings);
   page.className = 'book-page';
@@ -797,6 +1087,7 @@ function renderPage(chunk, index, total, settings, rand) {
   page.style.setProperty('--body-size', `${settings.bodySize}px`);
   page.style.setProperty('--body-leading', settings.leading);
   page.style.setProperty('--page-accent', settings.accent);
+  applyTextureToPage(page, `page-${index}`);
 
   const folio = document.createElement('span');
   folio.className = 'folio-mark';
@@ -1201,12 +1492,23 @@ els.generate.addEventListener('click', render);
 els.save.addEventListener('click', saveCurrentBook);
 els.library.addEventListener('click', openLibrary);
 els.closeLibrary.addEventListener('click', closeLibrary);
+els.favoriteFontsSelect.addEventListener('change', () => {
+  state.activeFavoritePresetId = els.favoriteFontsSelect.value;
+  applyFavoriteFontPresetById(state.activeFavoritePresetId);
+  updateFavoriteFontStatus();
+});
+els.removeFavoriteFontBtn.addEventListener('click', () => {
+  removeFavoriteFontPreset(els.favoriteFontsSelect.value);
+});
+els.applyTextures.addEventListener('input', updateTextureMode);
+els.applyTextures.addEventListener('change', updateTextureMode);
 document.querySelector('#libraryOverlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeLibrary();
 });
 els.randomize.addEventListener('click', randomize);
 els.print.addEventListener('click', createBookletPdf);
 els.systemFontBtn.addEventListener('click', loadSystemFonts);
+els.favoriteFontBtn.addEventListener('click', saveFavoriteFonts);
 els.editText.addEventListener('click', () => {
   state.editingText = !state.editingText;
   updateEditTextMode();
@@ -1316,5 +1618,10 @@ document.addEventListener('selectionchange', () => {
 });
 
 refreshFontSelects();
+renderFavoriteFontSelect();
+updateFavoriteFontStatus();
+renderTextureStrip();
+els.applyTextures.checked = state.applyTextures;
+updateTextureMode();
 updateSegments();
 render();
