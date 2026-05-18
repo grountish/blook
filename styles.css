@@ -81,7 +81,7 @@ body.has-textures .book-page::before {
   position: sticky;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 12px;
   overflow: auto;
   max-height: 100vh;
 }
@@ -298,7 +298,8 @@ input[type="range"] {
 
 .upload-field-text {
   display: flex;
-  gap: 1px;
+  align-items: baseline;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -320,6 +321,83 @@ input[type="range"] {
 .upload-field small {
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+.ascii-upload .upload-field-text {
+  display: grid;
+  gap: 2px;
+  align-items: start;
+}
+
+.ascii-upload .upload-field-text span {
+  line-height: 1;
+}
+
+.ascii-config {
+  margin-top: -2px;
+}
+
+.ascii-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ascii-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "label remove"
+    "chars size"
+    "insert update";
+  gap: 7px 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8f5ee;
+}
+
+.ascii-item-label {
+  grid-area: label;
+  color: var(--muted);
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ascii-item-size {
+  grid-area: size;
+  width: 88px;
+  justify-self: end;
+}
+
+.ascii-item-chars {
+  grid-area: chars;
+  font-family: "Courier New", "SFMono-Regular", ui-monospace, monospace;
+}
+
+.ascii-item-select {
+  grid-area: insert;
+  min-width: 0;
+}
+
+.ascii-item-size,
+.ascii-item-chars {
+  min-width: 0;
+}
+
+.ascii-item-update,
+.ascii-item-remove {
+  grid-area: update;
+  min-height: 32px;
+  padding-inline: 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.ascii-item-remove {
+  grid-area: remove;
 }
 
 .sr-only {
@@ -800,6 +878,40 @@ input[type="range"] {
   background: var(--paper);
 }
 
+.ascii-page {
+  background: #faf8f2;
+}
+
+.ascii-art {
+  position: absolute;
+  left: 4.6%;
+  right: 4.6%;
+  top: 17%;
+  bottom: 10%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Courier New", "SFMono-Regular", ui-monospace, monospace;
+  font-size: 6px;
+  line-height: 1;
+  letter-spacing: 0;
+  white-space: pre;
+}
+
+.ascii-display {
+  left: 5.2%;
+  top: 7%;
+  max-width: 86%;
+  font-size: calc(22px * var(--type-scale, 1));
+}
+
+.ascii-caption {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+}
+
 .page-number,
 .folio-mark {
   position: absolute;
@@ -1068,7 +1180,9 @@ input[type="range"] {
   }
 
   .controls {
+    position: static;
     max-height: none;
+    overflow: visible;
     border-right: 0;
     border-bottom: 1px solid var(--line);
   }
@@ -1084,6 +1198,10 @@ input[type="range"] {
   .preview-stage {
     padding: 18px;
   }
+
+  textarea {
+    min-height: 120px;
+  }
 }
 
 @media (max-width: 560px) {
@@ -1096,6 +1214,17 @@ input[type="range"] {
 
   .favorite-fonts-row {
     grid-template-columns: 1fr;
+  }
+
+  .ascii-item {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "label"
+      "chars"
+      "size"
+      "insert"
+      "update"
+      "remove";
   }
 
   .texture-strip {

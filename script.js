@@ -1,6 +1,7 @@
 const FAVORITE_FONTS_KEY = 'blook-favorite-fonts';
 const TEXTURE_BACKGROUND_KEY = 'blook-apply-textures';
 const TEXTURE_POOL_KEY = 'blook-texture-pool';
+const ASCII_CHARS = ' .,:;i1tfLCG08@';
 
 const textureImages = [
   'textures/texture1.jpg',
@@ -12,6 +13,7 @@ const textureImages = [
 
 const state = {
   images: [],
+  asciiPages: [],
 
   systemFonts: [],
   favoriteFontPresets: readFavoriteFontPresets(),
@@ -86,6 +88,10 @@ const els = {
   text: document.querySelector('#sourceText'),
   keywords: document.querySelector('#sourceKeywords'),
   imageInput: document.querySelector('#imageInput'),
+  asciiInput: document.querySelector('#asciiInput'),
+  asciiChars: document.querySelector('#asciiChars'),
+  asciiColumns: document.querySelector('#asciiColumns'),
+  asciiInsertAfter: document.querySelector('#asciiInsertAfter'),
   displayFont: document.querySelector('#displayFont'),
   bodyFont: document.querySelector('#bodyFont'),
   displayFontTrigger: document.querySelector('#displayFontTrigger'),
@@ -100,6 +106,8 @@ const els = {
   monoImages: document.querySelector('#monoImages'),
   applyTextures: document.querySelector('#applyTextures'),
   imageCount: document.querySelector('#imageCount'),
+  asciiStatus: document.querySelector('#asciiStatus'),
+  asciiList: document.querySelector('#asciiList'),
   textureStrip: document.querySelector('#textureStrip'),
   systemFontBtn: document.querySelector('#systemFontBtn'),
   systemFontStatus: document.querySelector('#systemFontStatus'),
@@ -611,6 +619,218 @@ function readFiles(files, mapper) {
   );
 }
 
+function ensureAsciiCharSet(value) {
+  const clean = String(value || '')
+    .replace(/[\r\n\t]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .slice(0, 80);
+  return clean.length >= 2 ? clean : ASCII_CHARS;
+}
+
+function currentTextPageTotal() {
+  const pageCount = clamp(Number(els.pageCount.value) || 4, 1, 24);
+  const hasBodyText = bodyFromText(els.text.value).trim().length > 0;
+  return hasBodyText ? pageCount : 0;
+}
+
+function normalizeAsciiInsertAfter(insertAfter, textPageTotal = currentTextPageTotal()) {
+  return clamp(Number(insertAfter) || 0, 0, textPageTotal);
+}
+
+function ensureAsciiRecord(record, textPageTotal = currentTextPageTotal()) {
+  if (!record || typeof record.text !== 'string') return null;
+  return {
+    id: record.id || `${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    name: record.name || 'ASCII page',
+    text: record.text,
+    sourceUrl: record.sourceUrl || '',
+    columns: clamp(Number(record.columns) || 100, 40, 140),
+    charSet: ensureAsciiCharSet(record.charSet),
+    insertAfter: normalizeAsciiInsertAfter(record.insertAfter, textPageTotal),
+  };
+}
+
+function updateAsciiInsertOptions() {
+  if (!els.asciiInsertAfter) return;
+  const currentValue = Number(els.asciiInsertAfter.value || 0);
+  const textPageTotal = currentTextPageTotal();
+  els.asciiInsertAfter.innerHTML = '';
+
+  for (let after = 0; after <= textPageTotal; after += 1) {
+    const option = document.createElement('option');
+    option.value = String(after);
+    if (!textPageTotal) {
+      option.textContent = 'Only page slot';
+    } else if (after === 0) {
+      option.textContent = 'Before page 1';
+    } else if (after === textPageTotal) {
+      option.textContent = `After page ${textPageTotal}`;
+    } else {
+      option.textContent = `After page ${after}`;
+    }
+    els.asciiInsertAfter.append(option);
+  }
+
+  els.asciiInsertAfter.value = String(normalizeAsciiInsertAfter(currentValue, textPageTotal));
+}
+
+function updateAsciiStatus() {
+  if (!els.asciiStatus) return;
+  if (!state.asciiPages.length) {
+    els.asciiStatus.textContent = 'No image';
+    return;
+  }
+
+  els.asciiStatus.textContent = `${state.asciiPages.length} page${state.asciiPages.length === 1 ? '' : 's'} ready`;
+}
+
+function renderAsciiList() {
+  if (!els.asciiList) return;
+  const textPageTotal = currentTextPageTotal();
+  els.asciiList.innerHTML = '';
+
+  if (!state.asciiPages.length) return;
+
+  state.asciiPages.forEach((asciiPage) => {
+    const row = document.createElement('div');
+    row.className = 'ascii-item';
+
+    const label = document.createElement('small');
+    label.className = 'ascii-item-label';
+    label.textContent = asciiPage.name || 'ASCII page';
+    row.append(label);
+
+    const sizeInput = document.createElement('input');
+    sizeInput.type = 'number';
+    sizeInput.min = '40';
+    sizeInput.max = '140';
+    sizeInput.step = '2';
+    sizeInput.className = 'ascii-item-size';
+    sizeInput.title = 'ASCII width (columns)';
+    sizeInput.setAttribute('aria-label', 'ASCII width');
+    sizeInput.placeholder = 'Width';
+    sizeInput.value = String(asciiPage.columns || 100);
+    row.append(sizeInput);
+
+    const charsInput = document.createElement('input');
+    charsInput.type = 'text';
+    charsInput.className = 'ascii-item-chars';
+    charsInput.title = 'Character set (dark to light)';
+    charsInput.setAttribute('aria-label', 'ASCII characters');
+    charsInput.placeholder = 'Character set';
+    charsInput.value = ensureAsciiCharSet(asciiPage.charSet);
+    charsInput.spellcheck = false;
+    row.append(charsInput);
+
+    const select = document.createElement('select');
+    select.className = 'ascii-item-select';
+    select.title = 'Insert position';
+    select.setAttribute('aria-label', 'Insert position');
+    for (let after = 0; after <= textPageTotal; after += 1) {
+      const option = document.createElement('option');
+      option.value = String(after);
+      if (!textPageTotal) {
+        option.textContent = 'Only page slot';
+      } else if (after === 0) {
+        option.textContent = 'Before page 1';
+      } else if (after === textPageTotal) {
+        option.textContent = `After page ${textPageTotal}`;
+      } else {
+        option.textContent = `After page ${after}`;
+      }
+      select.append(option);
+    }
+    select.value = String(normalizeAsciiInsertAfter(asciiPage.insertAfter, textPageTotal));
+    select.addEventListener('change', () => {
+      asciiPage.insertAfter = normalizeAsciiInsertAfter(select.value, textPageTotal);
+      render();
+    });
+    row.append(select);
+
+    const updateButton = document.createElement('button');
+    updateButton.type = 'button';
+    updateButton.className = 'secondary-button ascii-item-update';
+    updateButton.textContent = 'Update';
+    updateButton.disabled = !asciiPage.sourceUrl;
+    updateButton.addEventListener('click', async () => {
+      if (!asciiPage.sourceUrl) return;
+      const columns = clamp(Number(sizeInput.value) || 100, 40, 140);
+      const charSet = ensureAsciiCharSet(charsInput.value);
+      sizeInput.value = String(columns);
+      charsInput.value = charSet;
+      updateButton.disabled = true;
+      const originalLabel = updateButton.textContent;
+      updateButton.textContent = 'Updating...';
+      try {
+        asciiPage.columns = columns;
+        asciiPage.charSet = charSet;
+        asciiPage.text = await imageToAscii(asciiPage.sourceUrl, columns, charSet);
+        render();
+      } catch {
+        if (els.asciiStatus) els.asciiStatus.textContent = 'Conversion failed';
+      } finally {
+        updateButton.textContent = originalLabel;
+        updateButton.disabled = false;
+      }
+    });
+    row.append(updateButton);
+
+    const removeButton = document.createElement('button');
+    removeButton.type = 'button';
+    removeButton.className = 'secondary-button ascii-item-remove';
+    removeButton.textContent = 'Remove';
+    removeButton.addEventListener('click', () => {
+      state.asciiPages = state.asciiPages.filter((entry) => entry.id !== asciiPage.id);
+      updateAsciiStatus();
+      render();
+    });
+    row.append(removeButton);
+
+    els.asciiList.append(row);
+  });
+}
+
+function loadImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Could not decode image'));
+    img.src = url;
+  });
+}
+
+async function imageToAscii(url, targetColumns = 100, chars = ASCII_CHARS) {
+  const image = await loadImage(url);
+  const columns = clamp(targetColumns, 40, 140);
+  const characterSet = ensureAsciiCharSet(chars);
+  const rowRatio = 0.5;
+  const rows = clamp(Math.round((image.height / image.width) * columns * rowRatio), 26, 180);
+  const canvas = document.createElement('canvas');
+  canvas.width = columns;
+  canvas.height = rows;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(image, 0, 0, columns, rows);
+  const { data } = ctx.getImageData(0, 0, columns, rows);
+  const lines = [];
+
+  for (let y = 0; y < rows; y += 1) {
+    let line = '';
+    for (let x = 0; x < columns; x += 1) {
+      const offset = (y * columns + x) * 4;
+      const r = data[offset];
+      const g = data[offset + 1];
+      const b = data[offset + 2];
+      const alpha = data[offset + 3] / 255;
+      const luminance = ((0.2126 * r + 0.7152 * g + 0.0722 * b) * alpha + 255 * (1 - alpha)) / 255;
+      const index = Math.round((1 - luminance) * (characterSet.length - 1));
+      line += characterSet[index];
+    }
+    lines.push(line);
+  }
+
+  return lines.join('\n');
+}
+
 function timeoutAfter(ms) {
   return new Promise((_, reject) => {
     window.setTimeout(() => reject(new Error('Font access timed out')), ms);
@@ -1008,7 +1228,9 @@ function restoreTextSelection() {
 function storeEditableOverride(editable) {
   if (!editable) return;
 
-  const pageIndex = Number(editable.dataset.pageIndex);
+  const pageKey = editable.dataset.pageIndex;
+  if (!pageKey) return;
+  const pageIndex = /^-?\d+$/.test(pageKey) ? Number(pageKey) : pageKey;
   const targetMap = editable.dataset.editType === 'title' ? state.titleEdits : state.bodyEdits;
   targetMap.set(pageIndex, editable.innerHTML);
 }
@@ -1173,7 +1395,63 @@ function renderBackCoverPage(settings) {
   return page;
 }
 
-function renderPage(chunk, index, total, settings, rand) {
+function renderAsciiPage(asciiPage, index, total, settings) {
+  const page = document.createElement('article');
+  page.className = 'book-page ascii-page';
+  const asciiKey = `ascii:${asciiPage.id}`;
+  page.style.setProperty('--page-accent', settings.accent);
+  page.style.setProperty('--display-font', settings.displayFont);
+  page.style.setProperty('--type-scale', settings.typeScale);
+  page.style.setProperty('--type-spacing', settings.typeSpacing);
+  applyTextureToPage(page, `ascii-${asciiPage.id}`);
+
+  const folio = document.createElement('span');
+  folio.className = 'folio-mark';
+  folio.textContent = `${settings.title} / ${String(index + 1).padStart(2, '0')}`;
+  page.append(folio);
+
+  const pageNumber = document.createElement('span');
+  pageNumber.className = 'page-number';
+  pageNumber.textContent = `${index + 1}/${total}`;
+  page.append(pageNumber);
+
+  const display = document.createElement('h2');
+  display.className = 'display-line ascii-display';
+  const asciiName = asciiPage.name
+    ? asciiPage.name.replace(/\.[^/.]+$/, '').replace(/[_-]+/g, ' ').trim()
+    : '';
+  if (state.titleEdits.has(asciiKey)) {
+    display.innerHTML = state.titleEdits.get(asciiKey);
+  } else {
+    display.textContent = asciiName || settings.title;
+  }
+  display.style.fontFamily = settings.displayFont;
+  makeEditableText(display, asciiKey, 'title');
+  page.append(display);
+
+  const pre = document.createElement('pre');
+  pre.className = 'ascii-art';
+  pre.textContent = asciiPage.text;
+  page.append(pre);
+
+  const keywords = els.keywords.value
+    .trim()
+    .split(/\s*,\s*/)
+    .filter(Boolean);
+  const caption = document.createElement('span');
+  caption.className = 'caption ascii-caption';
+  if (state.bodyEdits.has(asciiKey)) {
+    caption.innerHTML = state.bodyEdits.get(asciiKey);
+  } else {
+    caption.textContent = keywords.length ? keywords[index % keywords.length] : 'ASCII';
+  }
+  makeEditableText(caption, asciiKey, 'body');
+  page.append(caption);
+
+  return page;
+}
+
+function renderPage(chunk, index, total, settings, rand, outputIndex) {
   const page = document.createElement('article');
   const recipe = layoutRecipe(index, rand, settings);
   page.className = 'book-page';
@@ -1188,12 +1466,12 @@ function renderPage(chunk, index, total, settings, rand) {
 
   const folio = document.createElement('span');
   folio.className = 'folio-mark';
-  folio.textContent = `${settings.title} / ${String(index + 1).padStart(2, '0')}`;
+  folio.textContent = `${settings.title} / ${String(outputIndex + 1).padStart(2, '0')}`;
   page.append(folio);
 
   const pageNumber = document.createElement('span');
   pageNumber.className = 'page-number';
-  pageNumber.textContent = `${index + 1}/${total}`;
+  pageNumber.textContent = `${outputIndex + 1}/${total}`;
   page.append(pageNumber);
 
   if (state.images.length) {
@@ -1318,22 +1596,48 @@ function currentSettings() {
 
 function render() {
   document.documentElement.style.setProperty('--accent', els.accentColor.value);
+  updateAsciiInsertOptions();
+  const textPageTotal = currentTextPageTotal();
+  state.asciiPages = state.asciiPages
+    .map((record) => ensureAsciiRecord(record, textPageTotal))
+    .filter(Boolean);
+  renderAsciiList();
+  updateAsciiStatus();
   const settings = currentSettings();
   const chunks = splitText(bodyFromText(els.text.value), settings.pageCount);
+  const total = textPageTotal + state.asciiPages.length;
   els.pages.innerHTML = '';
 
-  if (!chunks.length) {
+  if (!total) {
     const empty = document.querySelector('#emptyPageTemplate').content.cloneNode(true);
     els.pages.append(empty);
     updateEditTextMode();
     return;
   }
   const rand = seededRandom(state.seed);
-  const total = settings.pageCount;
+  const asciiBuckets = new Map();
+  state.asciiPages.forEach((page) => {
+    const slot = normalizeAsciiInsertAfter(page.insertAfter, textPageTotal);
+    if (!asciiBuckets.has(slot)) asciiBuckets.set(slot, []);
+    asciiBuckets.get(slot).push(page);
+  });
+  let renderedPages = 0;
   els.pages.append(renderCoverPage(settings));
-  for (let index = 0; index < total; index += 1) {
+
+  const renderAsciiAtSlot = (slot) => {
+    const pagesAtSlot = asciiBuckets.get(slot) || [];
+    pagesAtSlot.forEach((asciiPage) => {
+      els.pages.append(renderAsciiPage(asciiPage, renderedPages, total, settings));
+      renderedPages += 1;
+    });
+  };
+
+  renderAsciiAtSlot(0);
+  for (let index = 0; index < textPageTotal; index += 1) {
     const chunk = chunks[index] || '';
-    els.pages.append(renderPage(chunk, index, total, settings, rand));
+    els.pages.append(renderPage(chunk, index, total, settings, rand, renderedPages));
+    renderedPages += 1;
+    renderAsciiAtSlot(index + 1);
   }
   els.pages.append(renderBackCoverPage(settings));
   updateEditTextMode();
@@ -1452,6 +1756,7 @@ function serializeBook() {
     imageEdits: [...state.imageEdits.entries()],
     textZoneEdits: [...state.textZoneEdits.entries()],
     images: state.images,
+    asciiPages: state.asciiPages,
   };
 }
 
@@ -1471,9 +1776,13 @@ async function loadBook(id) {
   if (!record) return;
 
   state.images = record.images || [];
+  state.asciiPages = Array.isArray(record.asciiPages)
+    ? record.asciiPages.filter((page) => page && typeof page.text === 'string')
+    : [];
   makeImageStrip();
   const imgCount = state.images.length;
   els.imageCount.textContent = `${imgCount} file${imgCount !== 1 ? 's' : ''}`;
+  updateAsciiStatus();
 
   els.text.value = record.text || '';
   els.pageCount.value = record.pageCountVal;
@@ -1727,6 +2036,42 @@ els.imageInput.addEventListener('change', async (event) => {
   render();
 });
 
+els.asciiInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  if (els.asciiStatus) els.asciiStatus.textContent = 'Converting...';
+  try {
+    const chars = ensureAsciiCharSet(els.asciiChars.value);
+    const columns = clamp(Number(els.asciiColumns.value) || 100, 40, 140);
+    els.asciiChars.value = chars;
+    els.asciiColumns.value = String(columns);
+
+    const [{ name, url }] = await readFiles([file], (item, dataUrl) => ({
+      name: item.name,
+      url: dataUrl,
+    }));
+    const ascii = await imageToAscii(url, columns, chars);
+    state.asciiPages.push(
+      ensureAsciiRecord({
+        id: `${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+        name,
+        text: ascii,
+        sourceUrl: url,
+        columns,
+        charSet: chars,
+        insertAfter: Number(els.asciiInsertAfter.value || 0),
+      }),
+    );
+    updateAsciiStatus();
+    render();
+  } catch {
+    if (els.asciiStatus) els.asciiStatus.textContent = 'Conversion failed';
+  } finally {
+    event.target.value = '';
+  }
+});
+
 window.addEventListener('resize', () => {
   if (state.zoom < 1) fitPreview();
 });
@@ -1740,6 +2085,7 @@ refreshFontSelects();
 renderFavoriteFontSelect();
 updateFavoriteFontStatus();
 renderTextureStrip();
+updateAsciiStatus();
 els.applyTextures.checked = state.applyTextures;
 updateTextureMode();
 closeAllFontPickers();

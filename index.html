@@ -41,6 +41,31 @@
         <input id="imageInput" class="sr-only" type="file" accept="image/*" multiple />
       </label>
 
+      <label class="upload-field ascii-upload">
+        <span class="upload-field-icon">#</span>
+        <div class="upload-field-text">
+          <span>ASCII page</span>
+          <small id="asciiStatus">No image</small>
+        </div>
+        <input id="asciiInput" class="sr-only" type="file" accept="image/*" />
+      </label>
+
+      <div class="field-grid ascii-config">
+        <label class="field">
+          <span>ASCII chars</span>
+          <input id="asciiChars" type="text" value=" .,:;i1tfLCG08@" spellcheck="false" />
+        </label>
+        <label class="field">
+          <span>ASCII size</span>
+          <input id="asciiColumns" type="number" min="40" max="140" step="2" value="100" />
+        </label>
+      </div>
+      <label class="field">
+        <span>Insert ASCII after</span>
+        <select id="asciiInsertAfter"></select>
+      </label>
+      <div class="ascii-list" id="asciiList" aria-label="ASCII pages"></div>
+
       <div class="field-grid">
         <label class="field font-picker">
           <span>Display</span>
