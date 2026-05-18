@@ -123,6 +123,10 @@ body.has-textures .book-page::before {
   gap: 5px;
 }
 
+.font-picker-control {
+  position: relative;
+}
+
 .field span,
 .range-field span {
   color: var(--muted);
@@ -166,6 +170,91 @@ select {
   min-height: 34px;
   padding: 5px 9px;
   font-size: 0.9rem;
+}
+
+.font-picker-trigger {
+  position: relative;
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 30px 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fbfaf6;
+  color: var(--ink);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.font-picker-trigger::after {
+  content: "▾";
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.font-picker-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 40;
+  display: grid;
+  gap: 8px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf8f2;
+  box-shadow: 0 18px 40px rgba(20, 18, 14, 0.16);
+}
+
+.font-picker-menu[hidden] {
+  display: none !important;
+}
+
+.font-picker-group {
+  display: grid;
+  gap: 4px;
+}
+
+.font-picker-group-label {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.font-picker-option {
+  width: 100%;
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.font-picker-option:hover,
+.font-picker-option.is-selected {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.font-picker-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 6px 2px;
 }
 
 input[type="color"] {

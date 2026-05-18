@@ -42,13 +42,23 @@
       </label>
 
       <div class="field-grid">
-        <label class="field">
+        <label class="field font-picker">
           <span>Display</span>
-          <select id="displayFont"></select>
+          <div class="font-picker-control">
+            <button class="font-picker-trigger" id="displayFontTrigger" type="button" aria-haspopup="listbox"
+              aria-expanded="false"></button>
+            <div class="font-picker-menu" id="displayFontMenu" role="listbox" hidden></div>
+          </div>
+          <select id="displayFont" class="sr-only" tabindex="-1" aria-hidden="true"></select>
         </label>
-        <label class="field">
+        <label class="field font-picker">
           <span>Text</span>
-          <select id="bodyFont"></select>
+          <div class="font-picker-control">
+            <button class="font-picker-trigger" id="bodyFontTrigger" type="button" aria-haspopup="listbox"
+              aria-expanded="false"></button>
+            <div class="font-picker-menu" id="bodyFontMenu" role="listbox" hidden></div>
+          </div>
+          <select id="bodyFont" class="sr-only" tabindex="-1" aria-hidden="true"></select>
         </label>
       </div>
 

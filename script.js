@@ -88,6 +88,10 @@ const els = {
   imageInput: document.querySelector('#imageInput'),
   displayFont: document.querySelector('#displayFont'),
   bodyFont: document.querySelector('#bodyFont'),
+  displayFontTrigger: document.querySelector('#displayFontTrigger'),
+  displayFontMenu: document.querySelector('#displayFontMenu'),
+  bodyFontTrigger: document.querySelector('#bodyFontTrigger'),
+  bodyFontMenu: document.querySelector('#bodyFontMenu'),
   pageCount: document.querySelector('#pageCount'),
   accentColor: document.querySelector('#accentColor'),
   typeScale: document.querySelector('#typeScale'),
@@ -383,28 +387,121 @@ function addFontGroup(select, label, fonts) {
     const option = document.createElement('option');
     option.value = font.id;
     option.textContent = font.label;
+    option.style.fontFamily = font.family;
     group.append(option);
   });
   select.append(group);
 }
 
-function refreshFontSelects() {
+function fontGroups() {
   const favoriteFonts = favoriteFontPool();
   const favoriteIds = new Set(favoriteFonts.map((font) => font.id));
   const builtIn = filterFontsById(builtInFonts, favoriteIds);
   const system = filterFontsById(state.systemFonts, new Set([...favoriteIds, ...builtIn.map((font) => font.id)]));
 
+  return [
+    ['Favorites', favoriteFonts],
+    ['Built in', builtIn],
+    ['System', system],
+  ];
+}
+
+function syncFontSelectPreview(select) {
+  const font = allFonts().find((item) => item.id === select.value);
+  select.style.fontFamily = font?.family || '';
+  const trigger = select === els.displayFont ? els.displayFontTrigger : els.bodyFontTrigger;
+  if (trigger) {
+    trigger.textContent = font?.label || 'Choose font';
+    trigger.style.fontFamily = font?.family || '';
+  }
+}
+
+function closeFontPicker(kind) {
+  const menu = kind === 'display' ? els.displayFontMenu : els.bodyFontMenu;
+  const trigger = kind === 'display' ? els.displayFontTrigger : els.bodyFontTrigger;
+  menu.hidden = true;
+  trigger.setAttribute('aria-expanded', 'false');
+}
+
+function closeAllFontPickers() {
+  closeFontPicker('display');
+  closeFontPicker('body');
+}
+
+function openFontPicker(kind) {
+  const menu = kind === 'display' ? els.displayFontMenu : els.bodyFontMenu;
+  const trigger = kind === 'display' ? els.displayFontTrigger : els.bodyFontTrigger;
+  const isOpen = !menu.hidden;
+  closeAllFontPickers();
+  if (isOpen) return;
+  menu.hidden = false;
+  trigger.setAttribute('aria-expanded', 'true');
+}
+
+function buildFontPickerMenu(menu, select) {
+  menu.innerHTML = '';
+  const currentValue = select.value;
+
+  fontGroups().forEach(([label, fonts]) => {
+    if (!fonts.length) return;
+
+    const group = document.createElement('div');
+    group.className = 'font-picker-group';
+
+    const heading = document.createElement('div');
+    heading.className = 'font-picker-group-label';
+    heading.textContent = label;
+    group.append(heading);
+
+    fonts.forEach((font) => {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'font-picker-option';
+      option.dataset.fontId = font.id;
+      option.textContent = font.label;
+      option.style.fontFamily = font.family;
+      option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(font.id === currentValue));
+      option.classList.toggle('is-selected', font.id === currentValue);
+      option.addEventListener('click', () => {
+        select.value = font.id;
+        syncFontSelectPreview(select);
+        closeAllFontPickers();
+        render();
+      });
+      group.append(option);
+    });
+
+    menu.append(group);
+  });
+
+  if (!menu.children.length) {
+    const empty = document.createElement('div');
+    empty.className = 'font-picker-empty';
+    empty.textContent = 'No fonts available';
+    menu.append(empty);
+  }
+}
+
+function setFontPickerValue(select, value) {
+  select.value = value;
+  syncFontSelectPreview(select);
+}
+
+function refreshFontSelects() {
   for (const select of [els.displayFont, els.bodyFont]) {
     const previous = select.value;
     select.innerHTML = '';
-    addFontGroup(select, 'Favorites', favoriteFonts);
-    addFontGroup(select, 'Built in', builtIn);
-    addFontGroup(select, 'System', system);
+    fontGroups().forEach(([label, fonts]) => addFontGroup(select, label, fonts));
 
     const fallback =
       select === els.displayFont ? 'builtin:condensed-grotesk' : 'builtin:futurist-mono';
     select.value = allFonts().some((font) => font.id === previous) ? previous : fallback;
+    syncFontSelectPreview(select);
   }
+
+  buildFontPickerMenu(els.displayFontMenu, els.displayFont);
+  buildFontPickerMenu(els.bodyFontMenu, els.bodyFont);
 }
 
 function renderFavoriteFontSelect() {
@@ -468,11 +565,11 @@ function applyFavoriteFontPresetById(id) {
   state.activeFavoritePresetId = id;
 
   if (preset.display && allFonts().some((font) => font.id === preset.display.id)) {
-    els.displayFont.value = preset.display.id;
+    setFontPickerValue(els.displayFont, preset.display.id);
   }
 
   if (preset.body && allFonts().some((font) => font.id === preset.body.id)) {
-    els.bodyFont.value = preset.body.id;
+    setFontPickerValue(els.bodyFont, preset.body.id);
   }
 
   render();
@@ -1247,18 +1344,18 @@ function randomize() {
   const fonts = allFonts();
   clearPageTextEdits();
   clearImageEdits();
-  const x = rand();
   state.seed = Math.floor(rand() * 1000000);
   state.columns = rand() > 0.48 ? 2 : 1;
-  els.displayFont.value = pick(fonts, rand).id;
-  els.bodyFont.value = pick(fonts, rand).id;
-  els.pageCount.value = String(pick([2, 4, 6, 8, 10, 12], rand));
+  setFontPickerValue(els.displayFont, pick(fonts, rand).id);
+  setFontPickerValue(els.bodyFont, pick(fonts, rand).id);
   els.typeScale.value = String((0.52 + rand() * 2).toFixed(2));
   els.typeSpacing.value = Number((0.82 + rand() * 2).toFixed(2)) - 0.3;
   els.imageEnergy.value = String(Math.floor(35 + rand() * 64));
   els.accentColor.value = pick(palettes, rand);
   els.monoImages.checked = rand() > 0.28;
-  els.layoutName.textContent = pick(layoutNames, rand);
+  if (els.layoutName) {
+    els.layoutName.textContent = pick(layoutNames, rand);
+  }
   updateSegments();
   render();
 }
@@ -1394,8 +1491,8 @@ async function loadBook(id) {
   state.textZoneEdits = new Map(record.textZoneEdits || []);
 
   refreshFontSelects();
-  if (record.displayFontId) els.displayFont.value = record.displayFontId;
-  if (record.bodyFontId) els.bodyFont.value = record.bodyFontId;
+  if (record.displayFontId) setFontPickerValue(els.displayFont, record.displayFontId);
+  if (record.bodyFontId) setFontPickerValue(els.bodyFont, record.bodyFontId);
 
   updateSegments();
   closeLibrary();
@@ -1492,6 +1589,16 @@ els.generate.addEventListener('click', render);
 els.save.addEventListener('click', saveCurrentBook);
 els.library.addEventListener('click', openLibrary);
 els.closeLibrary.addEventListener('click', closeLibrary);
+els.displayFontTrigger.addEventListener('click', () => openFontPicker('display'));
+els.bodyFontTrigger.addEventListener('click', () => openFontPicker('body'));
+els.displayFontMenu.addEventListener('click', (event) => {
+  if (!event.target.closest('.font-picker-option')) return;
+  closeFontPicker('display');
+});
+els.bodyFontMenu.addEventListener('click', (event) => {
+  if (!event.target.closest('.font-picker-option')) return;
+  closeFontPicker('body');
+});
 els.favoriteFontsSelect.addEventListener('change', () => {
   state.activeFavoritePresetId = els.favoriteFontsSelect.value;
   applyFavoriteFontPresetById(state.activeFavoritePresetId);
@@ -1522,6 +1629,12 @@ els.highlight.addEventListener('click', applyTextBackground);
 els.highlightColor.addEventListener('input', applyTextBackground);
 els.highlightColor.addEventListener('change', applyTextBackground);
 els.fit.addEventListener('click', fitPreview);
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('.font-picker')) closeAllFontPickers();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeAllFontPickers();
+});
 els.zoomIn.addEventListener('click', () => {
   state.zoom = clamp(state.zoom + 0.1, 0.45, 1.4);
   document.documentElement.style.setProperty('--page-scale', state.zoom);
@@ -1558,8 +1671,14 @@ for (const el of [
   els.displayFont,
   els.bodyFont,
 ]) {
-  el.addEventListener('input', render);
-  el.addEventListener('change', render);
+  el.addEventListener('input', () => {
+    if (el === els.displayFont || el === els.bodyFont) syncFontSelectPreview(el);
+    render();
+  });
+  el.addEventListener('change', () => {
+    if (el === els.displayFont || el === els.bodyFont) syncFontSelectPreview(el);
+    render();
+  });
 }
 
 els.pages.addEventListener('input', (event) => {
@@ -1623,5 +1742,6 @@ updateFavoriteFontStatus();
 renderTextureStrip();
 els.applyTextures.checked = state.applyTextures;
 updateTextureMode();
+closeAllFontPickers();
 updateSegments();
 render();
