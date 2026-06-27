@@ -290,6 +290,31 @@ input[type="range"] {
   border-color: var(--ink);
 }
 
+.image-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.image-search input {
+  padding: 9px 12px;
+  font-size: 0.88rem;
+}
+
+.image-search .secondary-button {
+  padding: 0 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.image-search-status {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.68rem;
+  min-height: 0.9em;
+}
+
 .upload-field-icon {
   font-size: 1.1rem;
   flex-shrink: 0;
@@ -435,6 +460,19 @@ input[type="range"] {
 .segment.is-active {
   background: var(--ink);
   color: #fff;
+}
+
+.segmented-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.range-hint {
+  margin-left: 6px;
+  font-weight: 600;
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: color-mix(in srgb, var(--muted) 80%, transparent);
 }
 
 .check-field {
@@ -774,6 +812,23 @@ input[type="range"] {
   object-fit: cover;
   border: 1px solid var(--line);
   filter: grayscale(1) contrast(1.08);
+  cursor: pointer;
+  transition: filter 0.12s ease, opacity 0.12s ease, outline-color 0.12s ease;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.thumb:not(.is-deselected) {
+  outline-color: var(--accent);
+}
+
+.thumb.is-deselected {
+  opacity: 0.4;
+  filter: grayscale(1) contrast(1.08) brightness(1.05);
+}
+
+.thumb.is-deselected:hover {
+  opacity: 0.7;
 }
 
 .print-root {
@@ -1012,6 +1067,11 @@ input[type="range"] {
   margin: 0;
   overflow: hidden;
   touch-action: none;
+  /* Blend the whole figure against the page paper. The figure is a direct
+     child of the isolated .book-page, so its mix-blend-mode composites with
+     the paper; putting it on the inner <img> would only blend inside this
+     figure's own (empty) stacking context — i.e. do nothing. */
+  mix-blend-mode: var(--image-blend, normal);
 }
 
 .image-block img {
@@ -1342,4 +1402,158 @@ input[type="range"] {
 
 figure {
   z-index: 2 !important;
+}
+
+/* ============================================================
+   Fanzine effects — print artifacts + cut-and-paste collage
+   ============================================================ */
+
+/* — Image treatments — */
+
+/* Duotone (riso look): highlights → paper, shadows → accent */
+.image-block.duotone {
+  isolation: isolate;
+  background: var(--paper);
+}
+.image-block.duotone img {
+  filter: grayscale(1) contrast(1.18) brightness(1.04);
+}
+.image-block.duotone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--page-accent);
+  mix-blend-mode: lighten;
+  pointer-events: none;
+}
+
+/* Halftone: high-contrast grayscale under an ink dot-screen */
+.image-block.halftone img {
+  filter: grayscale(1) contrast(1.5) brightness(1.08);
+  mix-blend-mode: multiply;
+}
+.image-block.halftone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(0, 0, 0, 0.92) 33%, transparent 36%);
+  background-size: 3.4px 3.4px;
+  mix-blend-mode: multiply;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Torn paper edges */
+.image-block.torn-a {
+  clip-path: polygon(
+    0% 3%, 8% 0%, 17% 4%, 26% 1%, 35% 5%, 44% 1%, 53% 4%, 62% 0%, 72% 4%, 81% 1%, 90% 4%, 100% 2%,
+    100% 97%, 92% 100%, 83% 96%, 74% 99%, 64% 95%, 55% 99%, 45% 96%, 36% 100%, 26% 96%, 17% 99%, 8% 96%, 0% 98%
+  );
+}
+.image-block.torn-b {
+  clip-path: polygon(
+    2% 0%, 100% 1%, 97% 9%, 100% 19%, 96% 31%, 100% 44%, 97% 57%, 100% 70%, 96% 82%, 100% 94%, 90% 100%, 0% 99%,
+    3% 88%, 0% 74%, 4% 60%, 0% 46%, 3% 33%, 0% 20%, 4% 9%
+  );
+}
+
+/* — Off-register headline ghost (CMYK misregistration) — */
+.display-line.ghost::before {
+  content: attr(data-text);
+  position: absolute;
+  left: 0.055em;
+  top: 0.06em;
+  z-index: -1;
+  color: var(--page-accent);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* — Tape strips — */
+.tape {
+  position: absolute;
+  z-index: 7;
+  height: 22px;
+  background: rgba(244, 226, 120, 0.4);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
+  mix-blend-mode: multiply;
+  clip-path: polygon(3% 0%, 97% 5%, 100% 88%, 95% 100%, 5% 95%, 0% 12%);
+  pointer-events: none;
+}
+
+/* — Rubber stamps — */
+.stamp {
+  position: absolute;
+  z-index: 7;
+  padding: 3px 8px;
+  border: 2px solid var(--page-accent);
+  border-radius: 3px;
+  color: var(--page-accent);
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: calc(11px * var(--type-scale, 1));
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.72;
+  mix-blend-mode: multiply;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--page-accent) 35%, transparent);
+  pointer-events: none;
+}
+
+/* — Staples — */
+.staple {
+  position: absolute;
+  z-index: 7;
+  width: 13px;
+  height: 4px;
+  border-radius: 1px;
+  background: linear-gradient(#d2cdc2, #8c877d);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+}
+
+/* — Ornaments & starburst badges — */
+.ornament {
+  position: absolute;
+  z-index: 6;
+  line-height: 1;
+  pointer-events: none;
+}
+.badge {
+  position: absolute;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  padding: 6px;
+  background: var(--page-accent);
+  color: var(--paper);
+  font-family: "Arial Black", Impact, sans-serif;
+  font-weight: 900;
+  font-size: 10px;
+  line-height: 0.9;
+  text-align: center;
+  text-transform: uppercase;
+  transform: rotate(var(--badge-rot, -8deg));
+  clip-path: polygon(
+    50% 0%, 61% 12%, 77% 7%, 75% 24%, 92% 27%, 80% 40%, 96% 50%, 80% 60%, 92% 73%, 75% 76%, 77% 93%,
+    61% 88%, 50% 100%, 39% 88%, 23% 93%, 25% 76%, 8% 73%, 20% 60%, 4% 50%, 20% 40%, 8% 27%, 25% 24%, 23% 7%, 39% 12%
+  );
+  pointer-events: none;
+}
+
+/* — Photocopy grain — */
+.grain {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(rgba(0, 0, 0, 0.5) 0.5px, transparent 0.7px),
+    radial-gradient(rgba(0, 0, 0, 0.4) 0.5px, transparent 0.7px);
+  background-size: 3px 3px, 5px 4px;
+  background-position: 0 0, 2px 1px;
+  pointer-events: none;
 }

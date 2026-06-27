@@ -41,6 +41,13 @@
         <input id="imageInput" class="sr-only" type="file" accept="image/*" multiple />
       </label>
 
+      <div class="image-search">
+        <input id="imageSearchInput" type="text" spellcheck="false"
+          placeholder="Search free images — e.g. roses" />
+        <button id="imageSearchBtn" class="secondary-button" type="button">Fetch</button>
+        <small id="imageSearchStatus" class="image-search-status"></small>
+      </div>
+
       <label class="upload-field ascii-upload">
         <span class="upload-field-icon">#</span>
         <div class="upload-field-text">
@@ -87,6 +94,16 @@
         </label>
       </div>
 
+      <div class="favorite-fonts" aria-label="Curated font pairings">
+        <small class="favorite-fonts-label">Curated pairings</small>
+        <div class="favorite-fonts-row">
+          <select id="fontPairingSelect" aria-label="Curated Google font pairings"></select>
+          <button class="secondary-button favorite-remove-btn" id="shufflePairingBtn" type="button">
+            Shuffle
+          </button>
+        </div>
+      </div>
+
       <div class="system-font-row">
         <button class="link-button" id="systemFontBtn" type="button">Load system fonts</button>
         <small id="systemFontStatus" aria-live="polite">Permission required</small>
@@ -107,21 +124,27 @@
         </div>
       </div>
 
-      <div class="segmented" aria-label="Column count">
+      <div class="segmented segmented-3" id="columnSegment" aria-label="Column count">
         <button class="segment is-active" type="button" data-columns="1">1 col</button>
         <button class="segment" type="button" data-columns="2">2 cols</button>
+        <button class="segment" type="button" data-columns="random">Random</button>
       </div>
 
       <div class="field-grid">
         <label class="field">
           <span>Pages</span>
-          <input id="pageCount" type="number" min="1" max="24" value="4" />
+          <input id="pageCount" type="number" min="1" max="60" value="4" />
         </label>
         <label class="field">
           <span>Accent</span>
           <input id="accentColor" type="color" value="#ff2a1c" />
         </label>
       </div>
+
+      <label class="check-field">
+        <input id="autoPages" type="checkbox" />
+        <span>Auto-fit pages to text</span>
+      </label>
 
       <label class="range-field">
         <span>Type scale</span>
@@ -137,9 +160,43 @@
         <input id="imageEnergy" type="range" min="0" max="100" value="62" />
       </label>
 
+      <div class="field">
+        <span>Image treatment</span>
+        <div class="segmented segmented-3" id="imageTreatment" aria-label="Image treatment">
+          <button class="segment is-active" type="button" data-treatment="mono">Mono</button>
+          <button class="segment" type="button" data-treatment="duotone">Duo</button>
+          <button class="segment" type="button" data-treatment="halftone">Halftone</button>
+        </div>
+      </div>
+
+      <label class="field">
+        <span>Image blend</span>
+        <select id="imageBlend">
+          <option value="">Auto (per treatment)</option>
+          <option value="normal">Normal</option>
+          <option value="darken">Darker</option>
+          <option value="multiply">Multiply</option>
+          <option value="lighten">Brighter</option>
+          <option value="screen">Screen</option>
+          <option value="difference">Difference</option>
+          <option value="exclusion">Exclusion</option>
+          <option value="overlay">Overlay</option>
+          <option value="hard-light">Hard light</option>
+          <option value="soft-light">Soft light</option>
+          <option value="hue">Hue</option>
+          <option value="color">Color</option>
+          <option value="luminosity">Luminosity</option>
+        </select>
+      </label>
+
+      <label class="range-field">
+        <span>Grit <small class="range-hint">collage &amp; photocopy</small></span>
+        <input id="grit" type="range" min="0" max="100" value="38" />
+      </label>
+
       <label class="check-field">
-        <input id="monoImages" type="checkbox" checked />
-        <span>Monochrome images</span>
+        <input id="showDots" type="checkbox" />
+        <span>Dot texture <small class="range-hint">photocopy grain &amp; specks</small></span>
       </label>
 
       <label class="check-field">

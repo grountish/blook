@@ -1,7 +1,10 @@
 const FAVORITE_FONTS_KEY = 'blook-favorite-fonts';
 const TEXTURE_BACKGROUND_KEY = 'blook-apply-textures';
 const TEXTURE_POOL_KEY = 'blook-texture-pool';
+const AUTO_PAGES_KEY = 'blook-auto-pages';
 const ASCII_CHARS = ' .,:;i1tfLCG08@';
+// Upper bound on auto-fitted pages, also the manual ceiling.
+const MAX_PAGES = 60;
 
 const textureImages = [
   'textures/texture1.jpg',
@@ -27,11 +30,14 @@ const state = {
   draggedZone: null,
   textZoneEdits: new Map(),
   columns: 2,
+  imageTreatment: 'mono',
   seed: Math.floor(Math.random() * 100000),
   zoom: 1,
   activeFavoritePresetId: '',
   applyTextures: readTexturePreference(),
   texturePool: readTexturePool(),
+  autoPages: readAutoPagesPreference(),
+  wordDistribution: null,
 };
 
 const builtInFonts = [
@@ -73,6 +79,119 @@ const builtInFonts = [
   },
 ];
 
+// Curated Google Fonts catalog + pairings.
+// Pairings are sourced from public typographic pairing guides (Fontpair.co and
+// Google Fonts' own pairing recommendations) rather than random local fonts, so
+// every display/body combination is a known-good aesthetic match.
+// `weights` only lists axes that exist on each family — one invalid token would
+// make Google's combined CSS request fail for the whole catalog.
+const googleFontCatalog = [
+  { name: 'Playfair Display', role: 'serif', stack: 'Georgia, serif', weights: '400;700' },
+  { name: 'Source Sans 3', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Archivo Black', role: 'sans', stack: '"Arial Black", sans-serif', weights: '400' },
+  { name: 'Roboto', role: 'sans', stack: 'Arial, sans-serif', weights: '400;700' },
+  { name: 'Oswald', role: 'sans', stack: '"Arial Narrow", sans-serif', weights: '400;700' },
+  { name: 'Open Sans', role: 'sans', stack: 'Arial, sans-serif', weights: '400;700' },
+  { name: 'Bebas Neue', role: 'sans', stack: 'Impact, sans-serif', weights: '400' },
+  { name: 'Roboto Mono', role: 'mono', stack: '"Courier New", monospace', weights: '400;700' },
+  { name: 'Abril Fatface', role: 'serif', stack: 'Georgia, serif', weights: '400' },
+  { name: 'Lato', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Montserrat', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Merriweather', role: 'serif', stack: 'Georgia, serif', weights: '400;700' },
+  { name: 'Anton', role: 'sans', stack: 'Impact, sans-serif', weights: '400' },
+  { name: 'Space Grotesk', role: 'sans', stack: '"Helvetica Neue", sans-serif', weights: '400;700' },
+  { name: 'Inter', role: 'sans', stack: 'system-ui, sans-serif', weights: '400;700' },
+  { name: 'DM Serif Display', role: 'serif', stack: 'Georgia, serif', weights: '400' },
+  { name: 'DM Sans', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Syne', role: 'sans', stack: '"Helvetica Neue", sans-serif', weights: '400;700' },
+  { name: 'Libre Baskerville', role: 'serif', stack: 'Georgia, serif', weights: '400;700' },
+  { name: 'Libre Franklin', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Cormorant Garamond', role: 'serif', stack: 'Garamond, Georgia, serif', weights: '400;700' },
+  { name: 'Proza Libre', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Fraunces', role: 'serif', stack: 'Georgia, serif', weights: '400;700' },
+  { name: 'Manrope', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'IBM Plex Sans', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'IBM Plex Mono', role: 'mono', stack: '"Courier New", monospace', weights: '400;700' },
+  { name: 'Spectral', role: 'serif', stack: 'Georgia, serif', weights: '400;700' },
+  { name: 'Karla', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  // Experimental / characterful faces — terminal, glitch, brutalist, blackletter.
+  { name: 'Unbounded', role: 'display', stack: '"Arial Black", sans-serif', weights: '400;700' },
+  { name: 'Bricolage Grotesque', role: 'sans', stack: 'Helvetica, Arial, sans-serif', weights: '400;700' },
+  { name: 'Big Shoulders Display', role: 'display', stack: '"Arial Narrow", sans-serif', weights: '400;700' },
+  { name: 'Space Mono', role: 'mono', stack: '"Courier New", monospace', weights: '400;700' },
+  { name: 'VT323', role: 'mono', stack: '"Courier New", monospace', weights: '400' },
+  { name: 'Major Mono Display', role: 'mono', stack: '"Courier New", monospace', weights: '400' },
+  { name: 'Monoton', role: 'display', stack: '"Arial Black", sans-serif', weights: '400' },
+  { name: 'Bungee', role: 'display', stack: 'Impact, sans-serif', weights: '400' },
+  { name: 'Rubik Mono One', role: 'display', stack: '"Arial Black", sans-serif', weights: '400' },
+  { name: 'Rubik Glitch', role: 'display', stack: 'Impact, sans-serif', weights: '400' },
+  { name: 'Silkscreen', role: 'display', stack: 'monospace', weights: '400;700' },
+  { name: 'Pirata One', role: 'display', stack: 'Georgia, serif', weights: '400' },
+  { name: 'Instrument Serif', role: 'serif', stack: 'Georgia, serif', weights: '400' },
+  { name: 'Gloock', role: 'serif', stack: 'Georgia, serif', weights: '400' },
+  { name: 'Redacted Script', role: 'display', stack: 'cursive', weights: '400;700' },
+];
+
+const googleFonts = googleFontCatalog.map((font) => ({
+  id: `google:${font.name}`,
+  label: font.name,
+  family: `"${font.name}", ${font.stack}`,
+  role: font.role,
+}));
+
+// Display / body pairs. `display`/`body` reference catalog `name` values.
+// `classic` = safe, conventional matches; `experimental` = deliberately bold,
+// clashing, or characterful — fitting a fanzine's punk/photocopy aesthetic.
+const classicPairings = [
+  { vibe: 'Editorial elegance', display: 'Playfair Display', body: 'Source Sans 3' },
+  { vibe: 'Bold & modern', display: 'Archivo Black', body: 'Roboto' },
+  { vibe: 'Clean condensed', display: 'Oswald', body: 'Open Sans' },
+  { vibe: 'Poster + machine', display: 'Bebas Neue', body: 'Roboto Mono' },
+  { vibe: 'Fashion serif', display: 'Abril Fatface', body: 'Lato' },
+  { vibe: 'Classic contrast', display: 'Montserrat', body: 'Merriweather' },
+  { vibe: 'Impact headline', display: 'Anton', body: 'Roboto' },
+  { vibe: 'Contemporary geometric', display: 'Space Grotesk', body: 'Inter' },
+  { vibe: 'High-contrast serif', display: 'DM Serif Display', body: 'DM Sans' },
+  { vibe: 'Art-house brutal', display: 'Syne', body: 'Inter' },
+  { vibe: 'Literary classic', display: 'Libre Baskerville', body: 'Libre Franklin' },
+  { vibe: 'Refined editorial', display: 'Cormorant Garamond', body: 'Proza Libre' },
+  { vibe: 'Warm modern serif', display: 'Fraunces', body: 'Manrope' },
+  { vibe: 'Technical systems', display: 'IBM Plex Sans', body: 'IBM Plex Mono' },
+  { vibe: 'Journalistic', display: 'Spectral', body: 'Karla' },
+];
+
+const experimentalPairings = [
+  { vibe: 'Neon glitch', display: 'Monoton', body: 'Space Mono' },
+  { vibe: 'Sign painter', display: 'Bungee', body: 'Inter' },
+  { vibe: 'Brutalist block', display: 'Rubik Mono One', body: 'Roboto Mono' },
+  { vibe: 'Maximalist shout', display: 'Unbounded', body: 'IBM Plex Mono' },
+  { vibe: 'Blackletter punk', display: 'Pirata One', body: 'Karla' },
+  { vibe: 'Lo-fi terminal', display: 'Major Mono Display', body: 'Space Mono' },
+  { vibe: 'CRT boot screen', display: 'VT323', body: 'Space Mono' },
+  { vibe: 'Industrial slab', display: 'Big Shoulders Display', body: 'DM Sans' },
+  { vibe: 'Editorial brutalism', display: 'Bricolage Grotesque', body: 'Spectral' },
+  { vibe: 'Off-kilter editorial', display: 'Instrument Serif', body: 'Space Grotesk' },
+  { vibe: 'Heavy serif drama', display: 'Gloock', body: 'Manrope' },
+  { vibe: 'Corrupted signal', display: 'Rubik Glitch', body: 'Roboto Mono' },
+  { vibe: 'Pixel zine', display: 'Silkscreen', body: 'Roboto Mono' },
+  { vibe: 'Censored draft', display: 'Redacted Script', body: 'Karla' },
+  { vibe: 'Headline + machine', display: 'Anton', body: 'Space Mono' },
+];
+
+const decoratePairing = (tier) => (pairing) => ({
+  ...pairing,
+  tier,
+  id: `pair:${pairing.display}|${pairing.body}`,
+  displayId: `google:${pairing.display}`,
+  bodyId: `google:${pairing.body}`,
+  label: `${pairing.display} / ${pairing.body}`,
+});
+
+const fontPairings = [
+  ...classicPairings.map(decoratePairing('classic')),
+  ...experimentalPairings.map(decoratePairing('experimental')),
+];
+
 const layoutNames = [
   'Controlled chaos',
   'Circuit poetry',
@@ -88,6 +207,9 @@ const els = {
   text: document.querySelector('#sourceText'),
   keywords: document.querySelector('#sourceKeywords'),
   imageInput: document.querySelector('#imageInput'),
+  imageSearchInput: document.querySelector('#imageSearchInput'),
+  imageSearchBtn: document.querySelector('#imageSearchBtn'),
+  imageSearchStatus: document.querySelector('#imageSearchStatus'),
   asciiInput: document.querySelector('#asciiInput'),
   asciiChars: document.querySelector('#asciiChars'),
   asciiColumns: document.querySelector('#asciiColumns'),
@@ -103,8 +225,11 @@ const els = {
   typeScale: document.querySelector('#typeScale'),
   typeSpacing: document.querySelector('#typeSpacing'),
   imageEnergy: document.querySelector('#imageEnergy'),
-  monoImages: document.querySelector('#monoImages'),
+  imageBlend: document.querySelector('#imageBlend'),
+  grit: document.querySelector('#grit'),
+  showDots: document.querySelector('#showDots'),
   applyTextures: document.querySelector('#applyTextures'),
+  autoPages: document.querySelector('#autoPages'),
   imageCount: document.querySelector('#imageCount'),
   asciiStatus: document.querySelector('#asciiStatus'),
   asciiList: document.querySelector('#asciiList'),
@@ -115,6 +240,8 @@ const els = {
   favoriteFontStatus: document.querySelector('#favoriteFontStatus'),
   favoriteFontsSelect: document.querySelector('#favoriteFontsSelect'),
   removeFavoriteFontBtn: document.querySelector('#removeFavoriteFontBtn'),
+  fontPairingSelect: document.querySelector('#fontPairingSelect'),
+  shufflePairingBtn: document.querySelector('#shufflePairingBtn'),
   generate: document.querySelector('#generateBtn'),
   save: document.querySelector('#saveBtn'),
   library: document.querySelector('#libraryBtn'),
@@ -134,7 +261,8 @@ const els = {
   fit: document.querySelector('#fitBtn'),
   zoomIn: document.querySelector('#zoomInBtn'),
   zoomOut: document.querySelector('#zoomOutBtn'),
-  segments: [...document.querySelectorAll('.segment')],
+  segments: [...document.querySelectorAll('#columnSegment .segment')],
+  treatmentSegments: [...document.querySelectorAll('#imageTreatment .segment')],
 };
 
 function seededRandom(seed) {
@@ -168,6 +296,28 @@ function writeTexturePreference(enabled) {
   } catch {}
 }
 
+function readAutoPagesPreference() {
+  try {
+    return window.localStorage.getItem(AUTO_PAGES_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function writeAutoPagesPreference(enabled) {
+  try {
+    window.localStorage.setItem(AUTO_PAGES_KEY, String(Boolean(enabled)));
+  } catch {}
+}
+
+function debounce(fn, wait) {
+  let timer;
+  return (...args) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => fn(...args), wait);
+  };
+}
+
 function readTexturePool() {
   try {
     const raw = window.localStorage.getItem(TEXTURE_POOL_KEY);
@@ -191,11 +341,15 @@ function writeTexturePool() {
   } catch {}
 }
 
-function splitText(text, pageCount) {
+function textWords(text) {
   const clean = text.trim().replace(/\n{3,}/g, '\n\n');
-  if (!clean) return [];
+  return clean ? clean.split(/\s+/) : [];
+}
 
-  const words = clean.split(/\s+/);
+function splitText(text, pageCount) {
+  const words = textWords(text);
+  if (!words.length) return [];
+
   const perPage = Math.max(1, Math.ceil(words.length / pageCount));
   const chunks = [];
 
@@ -206,6 +360,23 @@ function splitText(text, pageCount) {
     if (chunk) chunks.push(chunk);
   }
 
+  return chunks;
+}
+
+// Slice words across pages using explicit per-page counts (capacity-weighted).
+// Any rounding remainder spills onto the last page so no word is dropped.
+function splitWordsByCounts(words, counts) {
+  const chunks = [];
+  let cursor = 0;
+  counts.forEach((count) => {
+    const take = Math.max(0, Math.round(count));
+    chunks.push(words.slice(cursor, cursor + take).join(' '));
+    cursor += take;
+  });
+  if (cursor < words.length && chunks.length) {
+    const last = chunks.length - 1;
+    chunks[last] = `${chunks[last]} ${words.slice(cursor).join(' ')}`.trim();
+  }
   return chunks;
 }
 
@@ -234,8 +405,38 @@ function phraseFromChunk(chunk) {
   return words.slice(start, start + 3).join(' ');
 }
 
+function googleFontsHref() {
+  const families = googleFontCatalog
+    .map((font) => `family=${encodeURIComponent(font.name).replace(/%20/g, '+')}:wght@${font.weights}`)
+    .join('&');
+  return `https://fonts.googleapis.com/css2?${families}&display=swap`;
+}
+
+// Inject the combined stylesheet for the whole curated catalog once. Declaring
+// every @font-face is cheap; the browser only downloads a family's files when a
+// glyph is actually rendered in it (e.g. in the picker preview or on a page).
+function loadGoogleFontCatalog() {
+  if (document.querySelector('#google-fonts-link')) return;
+
+  const preconnect = document.createElement('link');
+  preconnect.rel = 'preconnect';
+  preconnect.href = 'https://fonts.googleapis.com';
+
+  const preconnectStatic = document.createElement('link');
+  preconnectStatic.rel = 'preconnect';
+  preconnectStatic.href = 'https://fonts.gstatic.com';
+  preconnectStatic.crossOrigin = 'anonymous';
+
+  const stylesheet = document.createElement('link');
+  stylesheet.id = 'google-fonts-link';
+  stylesheet.rel = 'stylesheet';
+  stylesheet.href = googleFontsHref();
+
+  document.head.append(preconnect, preconnectStatic, stylesheet);
+}
+
 function allFonts() {
-  const fonts = [...favoriteFontPool(), ...builtInFonts, ...state.systemFonts];
+  const fonts = [...favoriteFontPool(), ...builtInFonts, ...googleFonts, ...state.systemFonts];
   const unique = new Map();
   fonts.forEach((font) => {
     if (!font?.id || unique.has(font.id)) return;
@@ -403,12 +604,16 @@ function addFontGroup(select, label, fonts) {
 
 function fontGroups() {
   const favoriteFonts = favoriteFontPool();
-  const favoriteIds = new Set(favoriteFonts.map((font) => font.id));
-  const builtIn = filterFontsById(builtInFonts, favoriteIds);
-  const system = filterFontsById(state.systemFonts, new Set([...favoriteIds, ...builtIn.map((font) => font.id)]));
+  const usedIds = new Set(favoriteFonts.map((font) => font.id));
+  const builtIn = filterFontsById(builtInFonts, usedIds);
+  builtIn.forEach((font) => usedIds.add(font.id));
+  const google = filterFontsById(googleFonts, usedIds);
+  google.forEach((font) => usedIds.add(font.id));
+  const system = filterFontsById(state.systemFonts, usedIds);
 
   return [
     ['Favorites', favoriteFonts],
+    ['Google pairings', google],
     ['Built in', builtIn],
     ['System', system],
   ];
@@ -594,13 +799,74 @@ function removeFavoriteFontPreset(id = state.activeFavoritePresetId) {
   updateFavoriteFontStatus();
 }
 
+function renderPairingSelect() {
+  const select = els.fontPairingSelect;
+  if (!select) return;
+  select.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Curated pairing…';
+  select.append(placeholder);
+
+  const tiers = [
+    ['Classic', fontPairings.filter((pairing) => pairing.tier === 'classic')],
+    ['Experimental', fontPairings.filter((pairing) => pairing.tier === 'experimental')],
+  ];
+
+  tiers.forEach(([label, pairings]) => {
+    if (!pairings.length) return;
+    const group = document.createElement('optgroup');
+    group.label = label;
+    pairings.forEach((pairing) => {
+      const option = document.createElement('option');
+      option.value = pairing.id;
+      option.textContent = `${pairing.vibe} · ${pairing.label}`;
+      group.append(option);
+    });
+    select.append(group);
+  });
+}
+
+function applyPairingById(id) {
+  const pairing = fontPairings.find((item) => item.id === id);
+  if (!pairing) return;
+
+  setFontPickerValue(els.displayFont, pairing.displayId);
+  setFontPickerValue(els.bodyFont, pairing.bodyId);
+  if (els.fontPairingSelect) els.fontPairingSelect.value = pairing.id;
+  render();
+}
+
+function selectedImages() {
+  return state.images.filter((image) => image.selected !== false);
+}
+
+function updateImageCount() {
+  const total = state.images.length;
+  if (!total) {
+    els.imageCount.textContent = '0 files';
+    return;
+  }
+  const used = selectedImages().length;
+  els.imageCount.textContent = `${used}/${total} selected`;
+}
+
 function makeImageStrip() {
   els.imageStrip.innerHTML = '';
   state.images.forEach((image) => {
     const img = document.createElement('img');
-    img.className = 'thumb';
+    img.className = classes('thumb', image.selected === false && 'is-deselected');
     img.src = image.url;
     img.alt = image.name;
+    img.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
+    img.addEventListener('click', () => {
+      image.selected = image.selected === false;
+      img.classList.toggle('is-deselected', image.selected === false);
+      img.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
+      updateImageCount();
+      render();
+    });
     els.imageStrip.append(img);
   });
 }
@@ -628,7 +894,7 @@ function ensureAsciiCharSet(value) {
 }
 
 function currentTextPageTotal() {
-  const pageCount = clamp(Number(els.pageCount.value) || 4, 1, 24);
+  const pageCount = clamp(Number(els.pageCount.value) || 4, 1, MAX_PAGES);
   const hasBodyText = bodyFromText(els.text.value).trim().length > 0;
   return hasBodyText ? pageCount : 0;
 }
@@ -958,6 +1224,78 @@ function addPoints(page, rand, accent) {
     point.style.backgroundColor = point.classList.contains('red') ? accent : '';
     page.append(point);
   }
+}
+
+// Join truthy class names, dropping false/'' so we never emit stray spaces.
+function classes(...names) {
+  return names.filter(Boolean).join(' ');
+}
+
+const BADGE_WORDS = ['NEW!', 'ZINE', 'FREE', '#1', 'PUNK', 'READ'];
+const ORNAMENTS = ['☞', '✶', '❡', '✳', '☜', '✦'];
+
+function addTape(page, rand, box) {
+  const tape = document.createElement('span');
+  tape.className = 'tape';
+  const width = 42 + rand() * 36;
+  const corner = Math.floor(rand() * 4);
+  const anchorLeft = corner % 2 === 0 ? box.left : box.left + box.width;
+  const anchorTop = corner < 2 ? box.top : box.top + box.height;
+  tape.style.width = `${width}px`;
+  tape.style.left = `calc(${clamp(anchorLeft, 2, 96)}% - ${width / 2}px)`;
+  tape.style.top = `calc(${clamp(anchorTop, 2, 96)}% - 11px)`;
+  tape.style.transform = `rotate(${(rand() * 40 - 20).toFixed(1)}deg)`;
+  page.append(tape);
+}
+
+function addStaples(page, rand) {
+  const baseTop = 24 + rand() * 10;
+  for (let i = 0; i < 2; i += 1) {
+    const staple = document.createElement('span');
+    staple.className = 'staple';
+    staple.style.left = `${3.4 + rand() * 1.6}%`;
+    staple.style.top = `${baseTop + i * 40}%`;
+    staple.style.transform = `rotate(${(rand() * 10 - 5).toFixed(1)}deg)`;
+    page.append(staple);
+  }
+}
+
+function addOrnament(page, rand, settings) {
+  if (rand() > 0.55) {
+    const badge = document.createElement('span');
+    badge.className = 'badge';
+    badge.textContent = pick(BADGE_WORDS, rand);
+    badge.style.left = `${10 + rand() * 68}%`;
+    badge.style.top = `${10 + rand() * 70}%`;
+    badge.style.setProperty('--badge-rot', `${(rand() * 24 - 12).toFixed(1)}deg`);
+    page.append(badge);
+    return;
+  }
+  const orn = document.createElement('span');
+  orn.className = 'ornament';
+  orn.textContent = pick(ORNAMENTS, rand);
+  orn.style.left = `${8 + rand() * 78}%`;
+  orn.style.top = `${10 + rand() * 76}%`;
+  orn.style.color = rand() > 0.5 ? settings.accent : '#151515';
+  orn.style.fontSize = `${(14 + rand() * 22).toFixed(0)}px`;
+  orn.style.transform = `rotate(${(rand() * 30 - 15).toFixed(1)}deg)`;
+  page.append(orn);
+}
+
+function addGrain(page, grit) {
+  const grain = document.createElement('span');
+  grain.className = 'grain';
+  grain.style.opacity = (0.1 + grit * 0.32).toFixed(2);
+  page.append(grain);
+}
+
+// Scatter the collage layer; every motif's odds scale with the Grit slider.
+function addCollage(page, rand, settings) {
+  const grit = settings.grit;
+  if (grit <= 0) return;
+  if (rand() < 0.45 * grit) addOrnament(page, rand, settings);
+  if (rand() < 0.5 * grit) addStaples(page, rand);
+  if (grit > 0.05 && settings.showDots) addGrain(page, grit);
 }
 
 function clearPageTextEdits() {
@@ -1313,6 +1651,19 @@ function buildBookletPrint() {
 
   if (!pages.length) return false;
 
+  // Saddle-stitch binding folds the stack in groups of four, so the leaf count
+  // must be a multiple of four for the sheets to close cleanly. Pad with blank
+  // leaves (rendered as null slots) up to the next multiple of four, inserting
+  // them just before the back cover so they fall in the centre of the fold and
+  // the back cover stays the outermost last leaf.
+  const remainder = pages.length % 4;
+  if (remainder !== 0) {
+    const lastIsBackCover = pages[pages.length - 1].classList.contains('back-cover');
+    const insertAt = lastIsBackCover ? pages.length - 1 : pages.length;
+    const blanks = Array.from({ length: 4 - remainder }, () => null);
+    pages.splice(insertAt, 0, ...blanks);
+  }
+
   const documentEl = document.createElement('div');
   documentEl.className = 'booklet-document';
 
@@ -1453,15 +1804,20 @@ function renderAsciiPage(asciiPage, index, total, settings) {
 
 function renderPage(chunk, index, total, settings, rand, outputIndex) {
   const page = document.createElement('article');
-  const recipe = layoutRecipe(index, rand, settings);
+  // "random" → each page rolls its own 1 or 2 columns. Only consume rand() in
+  // random mode so fixed 1/2 layouts stay identical to before.
+  const pageColumns = settings.columns === 'random' ? (rand() > 0.5 ? 2 : 1) : settings.columns;
+  const recipe = layoutRecipe(index, rand, { ...settings, columns: pageColumns });
   page.className = 'book-page';
   page.dataset.layout = recipe.layout;
   page.style.setProperty('--display-font', settings.displayFont);
   page.style.setProperty('--type-scale', settings.typeScale);
   page.style.setProperty('--type-spacing', settings.typeSpacing);
-  page.style.setProperty('--body-size', `${settings.bodySize}px`);
-  page.style.setProperty('--body-leading', settings.leading);
+  page.style.setProperty('--body-size', `${pageColumns === 2 ? 9.4 : 10.6}px`);
+  page.style.setProperty('--body-leading', pageColumns === 2 ? 1.38 : 1.45);
   page.style.setProperty('--page-accent', settings.accent);
+  // Empty = "Auto", leave the var unset so each treatment keeps its own blend.
+  if (settings.imageBlend) page.style.setProperty('--image-blend', settings.imageBlend);
   applyTextureToPage(page, `page-${index}`);
 
   const folio = document.createElement('span');
@@ -1474,11 +1830,13 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
   pageNumber.textContent = `${outputIndex + 1}/${total}`;
   page.append(pageNumber);
 
-  if (state.images.length) {
-    const image =
-      state.images[(index + Math.floor(rand() * state.images.length)) % state.images.length];
+  const imgs = selectedImages();
+
+  if (imgs.length) {
+    const image = imgs[(index + Math.floor(rand() * imgs.length)) % imgs.length];
     const figure = document.createElement('figure');
-    figure.className = `image-block ${settings.monoImages ? 'mono' : ''} ${rand() > 0.42 ? 'line' : ''} ${recipe.rotate}`;
+    const torn = settings.grit > 0 && rand() < 0.45 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
+    figure.className = classes('image-block', settings.imageTreatment, rand() > 0.42 && 'line', recipe.rotate, torn);
     placePercent(figure, recipe.image);
     applyImageEdit(figure, index, 'primary');
 
@@ -1487,12 +1845,17 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     img.alt = image.name;
     figure.append(img);
     page.append(figure);
+
+    if (settings.grit > 0 && rand() < 0.65 * settings.grit) {
+      addTape(page, rand, recipe.image);
+    }
   }
 
-  if (state.images.length > 1 && rand() > 0.45) {
-    const second = state.images[(index + 1) % state.images.length];
+  if (imgs.length > 1 && rand() > 0.45) {
+    const second = imgs[(index + 1) % imgs.length];
     const figure = document.createElement('figure');
-    figure.className = `image-block ${settings.monoImages ? 'mono' : ''}`;
+    const torn = settings.grit > 0 && rand() < 0.4 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
+    figure.className = classes('image-block', settings.imageTreatment, torn);
     placePercent(figure, {
       left: clamp(8 + rand() * 72, 4, 82),
       top: clamp(8 + rand() * 62, 4, 78),
@@ -1509,7 +1872,7 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
   }
 
   const display = document.createElement('h2');
-  display.className = `display-line ${rand() > 0.5 ? 'inverted-blend' : ''} ${recipe.outline ? 'outline' : ''} ${recipe.blackTitle ? 'black' : ''}`;
+  display.className = classes('display-line', recipe.outline && 'outline', recipe.blackTitle && 'black');
   if (state.titleEdits.has(index)) {
     display.innerHTML = state.titleEdits.get(index);
   } else {
@@ -1522,9 +1885,10 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
   page.append(display);
 
   const textZone = document.createElement('div');
-  textZone.className = `text-zone columns-${settings.columns} ${recipe.spaced ? 'spaced' : ''}`;
+  textZone.className = `text-zone columns-${pageColumns} ${recipe.spaced ? 'spaced' : ''}`;
   textZone.style.fontFamily = settings.bodyFont;
   textZone.dataset.pageIndex = String(index);
+  textZone.dataset.words = String(chunk.trim() ? chunk.trim().split(/\s+/).length : 0);
   placePercent(textZone, recipe.text);
 
   const zoneEdit = state.textZoneEdits.get(index);
@@ -1562,18 +1926,22 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     .trim()
     .split(/\s*,\s*/)
     .filter(Boolean);
-  caption.textContent = pick(keywords, rand);
+  // Fall back to the stock label pool when no keywords are supplied, so every
+  // page still gets its accent tag.
+  const tagPool = keywords.length ? keywords : ['index', 'source', 'fragment', 'plate', 'scan', 'note'];
+  caption.textContent = pick(tagPool, rand);
   caption.style.left = `${clamp(recipe.image.left + 1, 4, 88)}%`;
   caption.style.top = `${clamp(recipe.image.top + recipe.image.height + 1, 5, 92)}%`;
   page.append(caption);
 
   addRules(page, rand, settings.accent);
-  addPoints(page, rand, settings.accent);
+  if (settings.showDots) addPoints(page, rand, settings.accent);
+  addCollage(page, rand, settings);
   return page;
 }
 
 function currentSettings() {
-  const pageCount = clamp(Number(els.pageCount.value) || 4, 1, 24);
+  const pageCount = clamp(Number(els.pageCount.value) || 4, 1, MAX_PAGES);
   const typeScale = Number(els.typeScale.value) || 1;
   const typeSpacing = Number(els.typeSpacing.value) || 1;
   const displayFont = cssFont(els.displayFont.value);
@@ -1585,7 +1953,10 @@ function currentSettings() {
     typeScale,
     typeSpacing,
     imageEnergy: Number(els.imageEnergy.value) || 0,
-    monoImages: els.monoImages.checked,
+    imageTreatment: state.imageTreatment,
+    imageBlend: els.imageBlend.value,
+    grit: clamp((Number(els.grit.value) || 0) / 100, 0, 1),
+    showDots: els.showDots.checked,
     displayFont,
     bodyFont,
     bodySize: state.columns === 2 ? 9.4 : 10.6,
@@ -1594,7 +1965,7 @@ function currentSettings() {
   };
 }
 
-function render() {
+function renderPages() {
   document.documentElement.style.setProperty('--accent', els.accentColor.value);
   updateAsciiInsertOptions();
   const textPageTotal = currentTextPageTotal();
@@ -1604,7 +1975,12 @@ function render() {
   renderAsciiList();
   updateAsciiStatus();
   const settings = currentSettings();
-  const chunks = splitText(bodyFromText(els.text.value), settings.pageCount);
+  const bodyText = bodyFromText(els.text.value);
+  const distribution = state.wordDistribution;
+  const chunks =
+    distribution && distribution.length === settings.pageCount
+      ? splitWordsByCounts(textWords(bodyText), distribution)
+      : splitText(bodyText, settings.pageCount);
   const total = textPageTotal + state.asciiPages.length;
   els.pages.innerHTML = '';
 
@@ -1643,6 +2019,122 @@ function render() {
   updateEditTextMode();
 }
 
+// Per-text-page fill measurement. `ratio` is how full the zone is: <1 under-filled,
+// ~1 just full, >1 clipped (zones are `overflow: hidden`). The paragraph's own
+// height — not the zone's clamped scrollHeight — reveals under-fill. In multi-column
+// layouts overflow appears horizontally (content spilling into extra columns), so
+// when that happens we trust the horizontal measure; otherwise the vertical one.
+function measureTextFills() {
+  const zones = [
+    ...els.pages.querySelectorAll(
+      '.book-page:not(.cover-page):not(.ascii-page):not(.back-cover) .text-zone',
+    ),
+  ];
+  return zones.map((zone) => {
+    const paragraph = zone.querySelector('p');
+    const contentHeight = paragraph ? paragraph.offsetHeight : zone.scrollHeight;
+    const verticalFill = contentHeight / Math.max(1, zone.clientHeight);
+    const horizontalFill = zone.scrollWidth / Math.max(1, zone.clientWidth);
+    const ratio = horizontalFill > 1.01 ? horizontalFill : verticalFill;
+    return { words: Number(zone.dataset.words || 0), ratio };
+  });
+}
+
+// Capacity (in words) of a page = words it currently holds / how full it is.
+// Pages that are nearly empty give an unreliable estimate, so they fall back to
+// the average of the pages we can measure.
+function estimateCapacities(fills) {
+  const measured = fills
+    .filter((fill) => fill.words > 0 && fill.ratio > 0.02)
+    .map((fill) => fill.words / fill.ratio);
+  const average = measured.length
+    ? measured.reduce((sum, cap) => sum + cap, 0) / measured.length
+    : 0;
+  return { caps: fills.map((fill) => (fill.words > 0 && fill.ratio > 0.02 ? fill.words / fill.ratio : average)), average };
+}
+
+function renderAtPageCount(count, distribution = null) {
+  els.pageCount.value = String(count);
+  state.wordDistribution = distribution;
+  renderPages();
+}
+
+// Allocate `words` across `count` pages in proportion to each page's measured
+// capacity, so every page fills to roughly the same level instead of the
+// tightest page capping the rest. Iterates a couple of times to converge.
+function distributeProportionally(wordTotal, count, iterations = 2) {
+  let counts = Array.from({ length: count }, () => wordTotal / count);
+  let fills = [];
+  for (let i = 0; i < iterations; i += 1) {
+    renderAtPageCount(count, counts);
+    fills = measureTextFills();
+    const { caps, average } = estimateCapacities(fills);
+    const totalCap = caps.reduce((sum, cap) => sum + cap, 0) || average * count || wordTotal;
+    counts = caps.map((cap) => (wordTotal * cap) / totalCap);
+  }
+  const maxRatio = fills.reduce((max, fill) => Math.max(max, fill.ratio), 0);
+  return { counts, fits: maxRatio <= 1.01 };
+}
+
+// Auto-fit: pack every page to capacity, then use the fewest pages that still
+// show all the text. We probe once with an even split to estimate average page
+// capacity, jump straight to the estimated page count, then nudge up/down so the
+// result is both gap-free and minimal.
+function autoFitPages() {
+  const words = textWords(bodyFromText(els.text.value));
+  if (!words.length) {
+    state.wordDistribution = null;
+    renderPages();
+    return;
+  }
+
+  // Probe with an even split to learn the average per-page capacity.
+  const probe = clamp(Number(els.pageCount.value) || 4, 1, MAX_PAGES);
+  renderAtPageCount(probe, null);
+  const { average } = estimateCapacities(measureTextFills());
+  const avgCap = average > 0 ? average : words.length;
+
+  let n = clamp(Math.ceil(words.length / avgCap), 1, MAX_PAGES);
+  let result = distributeProportionally(words.length, n);
+
+  // Grow if the estimate was optimistic and text still clips.
+  while (!result.fits && n < MAX_PAGES) {
+    n += 1;
+    result = distributeProportionally(words.length, n);
+  }
+
+  // Shrink if a page could be removed without clipping (estimate was generous).
+  while (n > 1) {
+    const candidate = distributeProportionally(words.length, n - 1);
+    if (!candidate.fits) break;
+    n -= 1;
+    result = candidate;
+  }
+
+  // Ensure the final DOM reflects the chosen distribution.
+  renderAtPageCount(n, result.counts);
+}
+
+function render() {
+  if (state.autoPages) {
+    autoFitPages();
+  } else {
+    state.wordDistribution = null;
+    renderPages();
+  }
+}
+
+const debouncedRender = debounce(render, 140);
+
+function updateAutoPagesMode() {
+  state.autoPages = Boolean(els.autoPages.checked);
+  els.pageCount.disabled = state.autoPages;
+  els.pageCount.title = state.autoPages
+    ? 'Page count is set automatically to fit all text'
+    : '';
+  writeAutoPagesPreference(state.autoPages);
+}
+
 function randomize() {
   const rand = seededRandom(Date.now() % 1000000);
   const fonts = allFonts();
@@ -1650,23 +2142,41 @@ function randomize() {
   clearImageEdits();
   state.seed = Math.floor(rand() * 1000000);
   state.columns = rand() > 0.48 ? 2 : 1;
-  setFontPickerValue(els.displayFont, pick(fonts, rand).id);
-  setFontPickerValue(els.bodyFont, pick(fonts, rand).id);
+  // Prefer a curated pairing so randomized fonts stay aesthetically matched;
+  // occasionally fall back to fully random fonts for variety.
+  if (fontPairings.length && rand() > 0.25) {
+    const pairing = pick(fontPairings, rand);
+    setFontPickerValue(els.displayFont, pairing.displayId);
+    setFontPickerValue(els.bodyFont, pairing.bodyId);
+    if (els.fontPairingSelect) els.fontPairingSelect.value = pairing.id;
+  } else {
+    setFontPickerValue(els.displayFont, pick(fonts, rand).id);
+    setFontPickerValue(els.bodyFont, pick(fonts, rand).id);
+    if (els.fontPairingSelect) els.fontPairingSelect.value = '';
+  }
   els.typeScale.value = String((0.52 + rand() * 2).toFixed(2));
   els.typeSpacing.value = Number((0.82 + rand() * 2).toFixed(2)) - 0.3;
   els.imageEnergy.value = String(Math.floor(35 + rand() * 64));
   els.accentColor.value = pick(palettes, rand);
-  els.monoImages.checked = rand() > 0.28;
+  state.imageTreatment = pick(['mono', 'mono', 'duotone', 'halftone'], rand);
+  els.grit.value = String(Math.floor(18 + rand() * 62));
   if (els.layoutName) {
     els.layoutName.textContent = pick(layoutNames, rand);
   }
   updateSegments();
+  updateTreatmentSegments();
   render();
 }
 
 function updateSegments() {
   els.segments.forEach((segment) => {
-    segment.classList.toggle('is-active', Number(segment.dataset.columns) === state.columns);
+    segment.classList.toggle('is-active', segment.dataset.columns === String(state.columns));
+  });
+}
+
+function updateTreatmentSegments() {
+  els.treatmentSegments.forEach((segment) => {
+    segment.classList.toggle('is-active', segment.dataset.treatment === state.imageTreatment);
   });
 }
 
@@ -1747,7 +2257,10 @@ function serializeBook() {
     typeScaleVal: els.typeScale.value,
     typeSpacingVal: els.typeSpacing.value,
     imageEnergyVal: els.imageEnergy.value,
-    monoImages: els.monoImages.checked,
+    imageTreatment: state.imageTreatment,
+    imageBlendVal: els.imageBlend.value,
+    gritVal: els.grit.value,
+    showDots: els.showDots.checked,
     accentColor: els.accentColor.value,
     displayFontId: els.displayFont.value,
     bodyFontId: els.bodyFont.value,
@@ -1780,8 +2293,7 @@ async function loadBook(id) {
     ? record.asciiPages.filter((page) => page && typeof page.text === 'string')
     : [];
   makeImageStrip();
-  const imgCount = state.images.length;
-  els.imageCount.textContent = `${imgCount} file${imgCount !== 1 ? 's' : ''}`;
+  updateImageCount();
   updateAsciiStatus();
 
   els.text.value = record.text || '';
@@ -1789,7 +2301,10 @@ async function loadBook(id) {
   els.typeScale.value = record.typeScaleVal;
   els.typeSpacing.value = record.typeSpacingVal;
   els.imageEnergy.value = record.imageEnergyVal;
-  els.monoImages.checked = record.monoImages;
+  state.imageTreatment = record.imageTreatment || 'mono';
+  els.imageBlend.value = record.imageBlendVal || '';
+  els.grit.value = record.gritVal ?? els.grit.value;
+  els.showDots.checked = record.showDots ?? false;
   els.accentColor.value = record.accentColor;
   state.columns = record.columns;
   state.seed = record.seed;
@@ -1804,6 +2319,7 @@ async function loadBook(id) {
   if (record.bodyFontId) setFontPickerValue(els.bodyFont, record.bodyFontId);
 
   updateSegments();
+  updateTreatmentSegments();
   closeLibrary();
   render();
 }
@@ -1916,8 +2432,19 @@ els.favoriteFontsSelect.addEventListener('change', () => {
 els.removeFavoriteFontBtn.addEventListener('click', () => {
   removeFavoriteFontPreset(els.favoriteFontsSelect.value);
 });
+els.fontPairingSelect.addEventListener('change', () => {
+  if (els.fontPairingSelect.value) applyPairingById(els.fontPairingSelect.value);
+});
+els.shufflePairingBtn.addEventListener('click', () => {
+  const pairing = fontPairings[Math.floor(Math.random() * fontPairings.length)];
+  applyPairingById(pairing.id);
+});
 els.applyTextures.addEventListener('input', updateTextureMode);
 els.applyTextures.addEventListener('change', updateTextureMode);
+els.autoPages.addEventListener('change', () => {
+  updateAutoPagesMode();
+  render();
+});
 document.querySelector('#libraryOverlay').addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeLibrary();
 });
@@ -1955,15 +2482,23 @@ els.zoomOut.addEventListener('click', () => {
 
 els.segments.forEach((segment) => {
   segment.addEventListener('click', () => {
-    state.columns = Number(segment.dataset.columns);
+    state.columns = segment.dataset.columns === 'random' ? 'random' : Number(segment.dataset.columns);
     updateSegments();
+    render();
+  });
+});
+
+els.treatmentSegments.forEach((segment) => {
+  segment.addEventListener('click', () => {
+    state.imageTreatment = segment.dataset.treatment;
+    updateTreatmentSegments();
     render();
   });
 });
 
 els.text.addEventListener('input', () => {
   clearPageTextEdits();
-  render();
+  debouncedRender();
 });
 els.text.addEventListener('change', () => {
   clearPageTextEdits();
@@ -1976,13 +2511,18 @@ for (const el of [
   els.typeScale,
   els.typeSpacing,
   els.imageEnergy,
-  els.monoImages,
+  els.imageBlend,
+  els.grit,
+  els.showDots,
   els.displayFont,
   els.bodyFont,
 ]) {
   el.addEventListener('input', () => {
     if (el === els.displayFont || el === els.bodyFont) syncFontSelectPreview(el);
-    render();
+    // Auto-fit re-runs a multi-render search, so debounce high-frequency input
+    // (slider drags) to keep the preview smooth.
+    if (state.autoPages) debouncedRender();
+    else render();
   });
   el.addEventListener('change', () => {
     if (el === els.displayFont || el === els.bodyFont) syncFontSelectPreview(el);
@@ -2028,12 +2568,74 @@ els.imageInput.addEventListener('change', async (event) => {
   const images = await readFiles(event.target.files, (file, url) => ({
     name: file.name,
     url,
+    selected: true,
   }));
   state.images = images;
   clearImageEdits();
-  els.imageCount.textContent = `${images.length} file${images.length === 1 ? '' : 's'}`;
+  updateImageCount();
   makeImageStrip();
   render();
+});
+
+// Openverse: free Creative Commons image search, no API key required.
+// https://api.openverse.org/v1/images/  — returns proxied thumbnails that are
+// safe to use as plain <img src> (display + native print, no canvas taint).
+// Anonymous requests cap page_size at 20, so page through to reach `count`.
+async function searchOpenverse(query, count = 40) {
+  const perPage = 20;
+  const pages = Math.ceil(count / perPage);
+  const collected = [];
+  for (let page = 1; page <= pages; page += 1) {
+    const params = new URLSearchParams({
+      q: query,
+      page_size: String(perPage),
+      page: String(page),
+    });
+    const res = await fetch(`https://api.openverse.org/v1/images/?${params}`);
+    if (!res.ok) {
+      if (collected.length) break; // keep whatever earlier pages returned
+      throw new Error(`Openverse responded ${res.status}`);
+    }
+    const data = await res.json();
+    const batch = (data.results || [])
+      .map((r) => ({ name: r.title || query, url: r.thumbnail || r.url, selected: false }))
+      .filter((r) => r.url);
+    collected.push(...batch);
+    if (batch.length < perPage) break; // no more results
+  }
+  return collected.slice(0, count);
+}
+
+async function runImageSearch() {
+  const query = els.imageSearchInput.value.trim();
+  if (!query) return;
+  els.imageSearchStatus.textContent = 'Searching…';
+  els.imageSearchBtn.disabled = true;
+  try {
+    const found = await searchOpenverse(query, 40);
+    if (!found.length) {
+      els.imageSearchStatus.textContent = `No results for "${query}"`;
+      return;
+    }
+    state.images = state.images.concat(found);
+    updateImageCount();
+    els.imageSearchStatus.textContent = `${found.length} found for "${query}" — click thumbnails to use them`;
+    makeImageStrip();
+    render();
+  } catch (err) {
+    console.error(err);
+    els.imageSearchStatus.textContent = 'Search failed — try again';
+  } finally {
+    els.imageSearchBtn.disabled = false;
+  }
+}
+
+els.imageSearchBtn.addEventListener('click', runImageSearch);
+els.imageSearchInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    runImageSearch();
+  }
 });
 
 els.asciiInput.addEventListener('change', async (event) => {
@@ -2081,13 +2683,26 @@ document.addEventListener('selectionchange', () => {
   updateFormatState();
 });
 
+loadGoogleFontCatalog();
 refreshFontSelects();
 renderFavoriteFontSelect();
+renderPairingSelect();
 updateFavoriteFontStatus();
 renderTextureStrip();
 updateAsciiStatus();
 els.applyTextures.checked = state.applyTextures;
 updateTextureMode();
+els.autoPages.checked = state.autoPages;
+updateAutoPagesMode();
 closeAllFontPickers();
 updateSegments();
+updateTreatmentSegments();
 render();
+
+// Webfonts load asynchronously and have different metrics than the fallback
+// stacks, which can change how much text fits — re-fit once they settle.
+if (document.fonts?.ready) {
+  document.fonts.ready.then(() => {
+    if (state.autoPages) render();
+  });
+}
