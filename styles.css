@@ -1086,6 +1086,21 @@ input[type="range"] {
   mix-blend-mode: multiply;
 }
 
+/* Explicit Image-blend chosen: the figure's mix-blend-mode (var --image-blend)
+   composites the photo against the page paper. Strip the treatment's own
+   filter/blend on the inner <img> so the chosen mode acts on the real pixels —
+   otherwise mono's grayscale+multiply flattens it and darken/multiply/difference
+   all look identical. */
+.image-block.has-blend img {
+  filter: none;
+  mix-blend-mode: normal;
+}
+
+.image-block.has-blend.duotone,
+.image-block.has-blend.halftone {
+  isolation: auto;
+}
+
 /* .image-block.line {
   border: 1px solid rgba(0, 0, 0, 0.42);
 } */

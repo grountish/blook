@@ -346,38 +346,78 @@ function textWords(text) {
   return clean ? clean.split(/\s+/) : [];
 }
 
-function splitText(text, pageCount) {
-  const words = textWords(text);
-  if (!words.length) return [];
-
-  const perPage = Math.max(1, Math.ceil(words.length / pageCount));
-  const chunks = [];
-
-  for (let i = 0; i < pageCount; i += 1) {
-    const start = i * perPage;
-    const end = i === pageCount - 1 ? words.length : (i + 1) * perPage;
-    const chunk = words.slice(start, end).join(' ');
-    if (chunk) chunks.push(chunk);
-  }
-
-  return chunks;
+// Break body text into paragraphs. Prefer blank-line separation; fall back to
+// single newlines when the text has no blank lines. Each paragraph's internal
+// whitespace is collapsed so it reflows cleanly inside a page.
+function splitParagraphs(text) {
+  const clean = text.replace(/\r\n/g, '\n').trim();
+  if (!clean) return [];
+  let paras = clean.split(/\n{2,}/);
+  if (paras.length <= 1) paras = clean.split(/\n+/);
+  return paras.map((p) => p.replace(/\s+/g, ' ').trim()).filter(Boolean);
 }
 
-// Slice words across pages using explicit per-page counts (capacity-weighted).
-// Any rounding remainder spills onto the last page so no word is dropped.
-function splitWordsByCounts(words, counts) {
-  const chunks = [];
-  let cursor = 0;
-  counts.forEach((count) => {
-    const take = Math.max(0, Math.round(count));
-    chunks.push(words.slice(cursor, cursor + take).join(' '));
-    cursor += take;
-  });
-  if (cursor < words.length && chunks.length) {
-    const last = chunks.length - 1;
-    chunks[last] = `${chunks[last]} ${words.slice(cursor).join(' ')}`.trim();
+function wordCount(str) {
+  const trimmed = str.trim();
+  return trimmed ? trimmed.split(/\s+/).length : 0;
+}
+
+// Pack whole paragraphs into pages so every page break lands on a paragraph
+// boundary (a page never starts mid-paragraph). `targets` are relative per-page
+// weights (capacity). Each page aims for its share of the *remaining* words, so
+// chunky paragraphs early on don't starve later pages into blanks; we also keep
+// at least one paragraph in reserve per remaining page. Within a page we snap to
+// the nearest paragraph boundary around the target. The last page takes the rest.
+function packParagraphs(paragraphs, targets) {
+  if (!paragraphs.length) return [];
+  const pages = [];
+  let idx = 0;
+  let remainingWords = paragraphs.reduce((sum, para) => sum + wordCount(para), 0);
+  let remainingWeight = targets.reduce((sum, weight) => sum + (weight || 0), 0) || targets.length;
+  for (let p = 0; p < targets.length; p += 1) {
+    const pagesLeft = targets.length - p;
+    const weight = targets[p] || remainingWeight / pagesLeft;
+    if (idx >= paragraphs.length) {
+      pages.push('');
+      remainingWeight -= weight;
+      continue;
+    }
+    if (p === targets.length - 1) {
+      pages.push(paragraphs.slice(idx).join('\n\n'));
+      idx = paragraphs.length;
+      continue;
+    }
+    const target = remainingWords * (weight / (remainingWeight || 1));
+    // Reserve one paragraph for each later page so none ends up empty.
+    const maxTake = Math.max(1, paragraphs.length - idx - (pagesLeft - 1));
+    const start = idx;
+    let words = 0;
+    do {
+      words += wordCount(paragraphs[idx]);
+      idx += 1;
+    } while (
+      idx - start < maxTake &&
+      idx < paragraphs.length &&
+      target - words > wordCount(paragraphs[idx]) / 2
+    );
+    pages.push(paragraphs.slice(start, idx).join('\n\n'));
+    remainingWords -= words;
+    remainingWeight -= weight;
   }
-  return chunks;
+  // Any paragraphs left over (ran past the last target) join the final page.
+  if (idx < paragraphs.length) {
+    const tail = paragraphs.slice(idx).join('\n\n');
+    pages[pages.length - 1] = [pages[pages.length - 1], tail].filter(Boolean).join('\n\n');
+  }
+  return pages;
+}
+
+function splitText(text, pageCount) {
+  const paragraphs = splitParagraphs(text);
+  if (!paragraphs.length) return [];
+  const total = paragraphs.reduce((sum, para) => sum + wordCount(para), 0);
+  const targets = Array.from({ length: pageCount }, () => total / pageCount);
+  return packParagraphs(paragraphs, targets);
 }
 
 function titleFromText(text) {
@@ -854,22 +894,30 @@ function updateImageCount() {
 
 function makeImageStrip() {
   els.imageStrip.innerHTML = '';
-  state.images.forEach((image) => {
+  state.images.forEach((image, index) => {
     const img = document.createElement('img');
     img.className = classes('thumb', image.selected === false && 'is-deselected');
     img.src = image.url;
     img.alt = image.name;
+    img.dataset.index = String(index);
     img.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
-    img.addEventListener('click', () => {
-      image.selected = image.selected === false;
-      img.classList.toggle('is-deselected', image.selected === false);
-      img.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
-      updateImageCount();
-      render();
-    });
     els.imageStrip.append(img);
   });
 }
+
+// One delegated listener on the strip — survives every re-render and can't get
+// detached from individual thumbnails mid-interaction.
+els.imageStrip.addEventListener('click', (event) => {
+  const thumb = event.target.closest('.thumb');
+  if (!thumb || !els.imageStrip.contains(thumb)) return;
+  const image = state.images[Number(thumb.dataset.index)];
+  if (!image) return;
+  image.selected = image.selected === false;
+  thumb.classList.toggle('is-deselected', image.selected === false);
+  thumb.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
+  updateImageCount();
+  render();
+});
 
 function readFiles(files, mapper) {
   return Promise.all(
@@ -1231,8 +1279,6 @@ function classes(...names) {
   return names.filter(Boolean).join(' ');
 }
 
-const BADGE_WORDS = ['NEW!', 'ZINE', 'FREE', '#1', 'PUNK', 'READ'];
-const ORNAMENTS = ['☞', '✶', '❡', '✳', '☜', '✦'];
 
 function addTape(page, rand, box) {
   const tape = document.createElement('span');
@@ -1260,28 +1306,6 @@ function addStaples(page, rand) {
   }
 }
 
-function addOrnament(page, rand, settings) {
-  if (rand() > 0.55) {
-    const badge = document.createElement('span');
-    badge.className = 'badge';
-    badge.textContent = pick(BADGE_WORDS, rand);
-    badge.style.left = `${10 + rand() * 68}%`;
-    badge.style.top = `${10 + rand() * 70}%`;
-    badge.style.setProperty('--badge-rot', `${(rand() * 24 - 12).toFixed(1)}deg`);
-    page.append(badge);
-    return;
-  }
-  const orn = document.createElement('span');
-  orn.className = 'ornament';
-  orn.textContent = pick(ORNAMENTS, rand);
-  orn.style.left = `${8 + rand() * 78}%`;
-  orn.style.top = `${10 + rand() * 76}%`;
-  orn.style.color = rand() > 0.5 ? settings.accent : '#151515';
-  orn.style.fontSize = `${(14 + rand() * 22).toFixed(0)}px`;
-  orn.style.transform = `rotate(${(rand() * 30 - 15).toFixed(1)}deg)`;
-  page.append(orn);
-}
-
 function addGrain(page, grit) {
   const grain = document.createElement('span');
   grain.className = 'grain';
@@ -1293,7 +1317,6 @@ function addGrain(page, grit) {
 function addCollage(page, rand, settings) {
   const grit = settings.grit;
   if (grit <= 0) return;
-  if (rand() < 0.45 * grit) addOrnament(page, rand, settings);
   if (rand() < 0.5 * grit) addStaples(page, rand);
   if (grit > 0.05 && settings.showDots) addGrain(page, grit);
 }
@@ -1836,7 +1859,7 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     const image = imgs[(index + Math.floor(rand() * imgs.length)) % imgs.length];
     const figure = document.createElement('figure');
     const torn = settings.grit > 0 && rand() < 0.45 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
-    figure.className = classes('image-block', settings.imageTreatment, rand() > 0.42 && 'line', recipe.rotate, torn);
+    figure.className = classes('image-block', settings.imageTreatment, settings.imageBlend && 'has-blend', rand() > 0.42 && 'line', recipe.rotate, torn);
     placePercent(figure, recipe.image);
     applyImageEdit(figure, index, 'primary');
 
@@ -1855,7 +1878,7 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     const second = imgs[(index + 1) % imgs.length];
     const figure = document.createElement('figure');
     const torn = settings.grit > 0 && rand() < 0.4 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
-    figure.className = classes('image-block', settings.imageTreatment, torn);
+    figure.className = classes('image-block', settings.imageTreatment, settings.imageBlend && 'has-blend', torn);
     placePercent(figure, {
       left: clamp(8 + rand() * 72, 4, 82),
       top: clamp(8 + rand() * 62, 4, 78),
@@ -1979,7 +2002,7 @@ function renderPages() {
   const distribution = state.wordDistribution;
   const chunks =
     distribution && distribution.length === settings.pageCount
-      ? splitWordsByCounts(textWords(bodyText), distribution)
+      ? packParagraphs(splitParagraphs(bodyText), distribution)
       : splitText(bodyText, settings.pageCount);
   const total = textPageTotal + state.asciiPages.length;
   els.pages.innerHTML = '';
