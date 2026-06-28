@@ -806,7 +806,13 @@ input[type="range"] {
   min-height: 0;
 }
 
+.thumb-cell {
+  position: relative;
+  display: block;
+}
+
 .thumb {
+  display: block;
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
@@ -816,6 +822,29 @@ input[type="range"] {
   transition: filter 0.12s ease, opacity 0.12s ease, outline-color 0.12s ease;
   outline: 2px solid transparent;
   outline-offset: -2px;
+}
+
+.thumb-blend {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  max-width: calc(100% - 4px);
+  font-size: 9px;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+
+.thumb-cell:hover .thumb-blend,
+.thumb-blend:focus,
+.thumb-blend.is-set {
+  opacity: 1;
 }
 
 .thumb:not(.is-deselected) {

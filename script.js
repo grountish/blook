@@ -892,30 +892,78 @@ function updateImageCount() {
   els.imageCount.textContent = `${used}/${total} selected`;
 }
 
+// Blend modes offered per image. Empty value = "Auto" → inherit the global
+// Image-blend dropdown. Labels mirror the global select in index.html.
+const BLEND_OPTIONS = [
+  ['', 'Auto'],
+  ['normal', 'Normal'],
+  ['darken', 'Darker'],
+  ['multiply', 'Multiply'],
+  ['lighten', 'Brighter'],
+  ['screen', 'Screen'],
+  ['difference', 'Difference'],
+  ['exclusion', 'Exclusion'],
+  ['overlay', 'Overlay'],
+  ['hard-light', 'Hard light'],
+  ['soft-light', 'Soft light'],
+  ['hue', 'Hue'],
+  ['color', 'Color'],
+  ['luminosity', 'Luminosity'],
+];
+
 function makeImageStrip() {
   els.imageStrip.innerHTML = '';
   state.images.forEach((image, index) => {
+    const cell = document.createElement('div');
+    cell.className = 'thumb-cell';
+    cell.dataset.index = String(index);
+
     const img = document.createElement('img');
     img.className = classes('thumb', image.selected === false && 'is-deselected');
     img.src = image.url;
     img.alt = image.name;
-    img.dataset.index = String(index);
     img.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
-    els.imageStrip.append(img);
+    cell.append(img);
+
+    const blend = document.createElement('select');
+    blend.className = classes('thumb-blend', image.blend && 'is-set');
+    blend.title = 'Blend mode for this image';
+    BLEND_OPTIONS.forEach(([value, label]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value ? label : 'Blend…';
+      blend.append(option);
+    });
+    blend.value = image.blend || '';
+    cell.append(blend);
+
+    els.imageStrip.append(cell);
   });
 }
 
-// One delegated listener on the strip — survives every re-render and can't get
+// Delegated listeners on the strip — survive every re-render and can't get
 // detached from individual thumbnails mid-interaction.
 els.imageStrip.addEventListener('click', (event) => {
-  const thumb = event.target.closest('.thumb');
-  if (!thumb || !els.imageStrip.contains(thumb)) return;
-  const image = state.images[Number(thumb.dataset.index)];
+  if (event.target.closest('.thumb-blend')) return; // let the dropdown handle itself
+  const cell = event.target.closest('.thumb-cell');
+  if (!cell || !els.imageStrip.contains(cell)) return;
+  const image = state.images[Number(cell.dataset.index)];
   if (!image) return;
   image.selected = image.selected === false;
-  thumb.classList.toggle('is-deselected', image.selected === false);
-  thumb.title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
+  cell.querySelector('.thumb').classList.toggle('is-deselected', image.selected === false);
+  cell.querySelector('.thumb').title = `${image.name} — click to ${image.selected === false ? 'use' : 'skip'}`;
   updateImageCount();
+  render();
+});
+
+els.imageStrip.addEventListener('change', (event) => {
+  const select = event.target.closest('.thumb-blend');
+  if (!select) return;
+  const cell = select.closest('.thumb-cell');
+  const image = state.images[Number(cell.dataset.index)];
+  if (!image) return;
+  image.blend = select.value || undefined;
+  select.classList.toggle('is-set', Boolean(image.blend));
   render();
 });
 
@@ -1825,6 +1873,17 @@ function renderAsciiPage(asciiPage, index, total, settings) {
   return page;
 }
 
+// Resolve a figure's blend: the image's own override wins, else the global
+// Image-blend dropdown. When set, apply it inline (scoped to this figure, so two
+// images on one page can blend differently) and flag has-blend so the CSS strips
+// the treatment's grayscale/multiply and lets the chosen mode act on real pixels.
+function applyFigureBlend(figure, image, settings) {
+  const blend = (image && image.blend) || settings.imageBlend;
+  if (!blend) return;
+  figure.style.setProperty('--image-blend', blend);
+  figure.classList.add('has-blend');
+}
+
 function renderPage(chunk, index, total, settings, rand, outputIndex) {
   const page = document.createElement('article');
   // "random" → each page rolls its own 1 or 2 columns. Only consume rand() in
@@ -1839,8 +1898,6 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
   page.style.setProperty('--body-size', `${pageColumns === 2 ? 9.4 : 10.6}px`);
   page.style.setProperty('--body-leading', pageColumns === 2 ? 1.38 : 1.45);
   page.style.setProperty('--page-accent', settings.accent);
-  // Empty = "Auto", leave the var unset so each treatment keeps its own blend.
-  if (settings.imageBlend) page.style.setProperty('--image-blend', settings.imageBlend);
   applyTextureToPage(page, `page-${index}`);
 
   const folio = document.createElement('span');
@@ -1859,7 +1916,8 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     const image = imgs[(index + Math.floor(rand() * imgs.length)) % imgs.length];
     const figure = document.createElement('figure');
     const torn = settings.grit > 0 && rand() < 0.45 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
-    figure.className = classes('image-block', settings.imageTreatment, settings.imageBlend && 'has-blend', rand() > 0.42 && 'line', recipe.rotate, torn);
+    figure.className = classes('image-block', settings.imageTreatment, rand() > 0.42 && 'line', recipe.rotate, torn);
+    applyFigureBlend(figure, image, settings);
     placePercent(figure, recipe.image);
     applyImageEdit(figure, index, 'primary');
 
@@ -1878,7 +1936,8 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     const second = imgs[(index + 1) % imgs.length];
     const figure = document.createElement('figure');
     const torn = settings.grit > 0 && rand() < 0.4 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
-    figure.className = classes('image-block', settings.imageTreatment, settings.imageBlend && 'has-blend', torn);
+    figure.className = classes('image-block', settings.imageTreatment, torn);
+    applyFigureBlend(figure, second, settings);
     placePercent(figure, {
       left: clamp(8 + rand() * 72, 4, 82),
       top: clamp(8 + rand() * 62, 4, 78),
