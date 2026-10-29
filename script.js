@@ -23,6 +23,7 @@ const state = {
   bodyEdits: new Map(),
   titleEdits: new Map(),
   imageEdits: new Map(),
+  imageBlends: new Map(),
   editingText: false,
   savedSelection: null,
   activeEditable: null,
@@ -1376,6 +1377,7 @@ function clearPageTextEdits() {
 
 function clearImageEdits() {
   state.imageEdits.clear();
+  state.imageBlends.clear();
   state.textZoneEdits.clear();
 }
 
@@ -1446,6 +1448,7 @@ function applyImageEdit(figure, index, slot) {
 
 function startImageDrag(event) {
   if (!state.editingText) return;
+  if (event.button !== 0) return; // ignore right/middle — right-click opens blend menu
 
   const resizer = event.target.closest('.zone-resize-handle');
   const figure = event.target.closest('.movable-image');
@@ -1526,6 +1529,83 @@ function stopImageDrag() {
 
   state.draggedImage.figure.classList.remove('is-dragging');
   state.draggedImage = null;
+}
+
+// — Per-image blend context menu (edit mode, right-click a figure) —
+
+let imageBlendMenu = null;
+
+function closeImageBlendMenu() {
+  if (!imageBlendMenu) return;
+  imageBlendMenu.remove();
+  imageBlendMenu = null;
+  document.removeEventListener('pointerdown', onBlendMenuOutside, true);
+  document.removeEventListener('keydown', onBlendMenuKey, true);
+  window.removeEventListener('scroll', closeImageBlendMenu, true);
+  window.removeEventListener('blur', closeImageBlendMenu);
+  window.removeEventListener('resize', closeImageBlendMenu);
+}
+
+function onBlendMenuOutside(event) {
+  if (imageBlendMenu && !imageBlendMenu.contains(event.target)) closeImageBlendMenu();
+}
+
+function onBlendMenuKey(event) {
+  if (event.key === 'Escape') closeImageBlendMenu();
+}
+
+function openImageBlendMenu(figure, clientX, clientY) {
+  closeImageBlendMenu();
+
+  const key = imageEditKey(figure.dataset.pageIndex, figure.dataset.imageSlot);
+  const current = state.imageBlends.get(key) || '';
+
+  const menu = document.createElement('div');
+  menu.className = 'blend-menu';
+
+  const head = document.createElement('div');
+  head.className = 'blend-menu-head';
+  head.textContent = 'Blend mode';
+  menu.append(head);
+
+  BLEND_OPTIONS.forEach(([value, label]) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = classes('blend-menu-item', value === current && 'is-active');
+    item.textContent = value ? label : 'Auto (inherit)';
+    item.addEventListener('click', () => {
+      if (value) state.imageBlends.set(key, value);
+      else state.imageBlends.delete(key);
+      closeImageBlendMenu();
+      render();
+    });
+    menu.append(item);
+  });
+
+  // Render hidden to measure, then clamp inside the viewport.
+  menu.style.visibility = 'hidden';
+  document.body.append(menu);
+  const rect = menu.getBoundingClientRect();
+  const x = Math.max(8, Math.min(clientX, window.innerWidth - rect.width - 8));
+  const y = Math.max(8, Math.min(clientY, window.innerHeight - rect.height - 8));
+  menu.style.left = `${x}px`;
+  menu.style.top = `${y}px`;
+  menu.style.visibility = 'visible';
+
+  imageBlendMenu = menu;
+  document.addEventListener('pointerdown', onBlendMenuOutside, true);
+  document.addEventListener('keydown', onBlendMenuKey, true);
+  window.addEventListener('scroll', closeImageBlendMenu, true);
+  window.addEventListener('blur', closeImageBlendMenu);
+  window.addEventListener('resize', closeImageBlendMenu);
+}
+
+function onPageContextMenu(event) {
+  if (!state.editingText) return;
+  const figure = event.target.closest('.image-block');
+  if (!figure || !els.pages.contains(figure)) return;
+  event.preventDefault();
+  openImageBlendMenu(figure, event.clientX, event.clientY);
 }
 
 function startTextZoneDrag(event) {
@@ -1877,8 +1957,12 @@ function renderAsciiPage(asciiPage, index, total, settings) {
 // Image-blend dropdown. When set, apply it inline (scoped to this figure, so two
 // images on one page can blend differently) and flag has-blend so the CSS strips
 // the treatment's grayscale/multiply and lets the chosen mode act on real pixels.
-function applyFigureBlend(figure, image, settings) {
-  const blend = (image && image.blend) || settings.imageBlend;
+function applyFigureBlend(figure, image, settings, index, slot) {
+  // Resolution order, most granular first: per-instance override set by
+  // right-click on this exact page/slot, then the image's own override, then
+  // the global Image-blend dropdown.
+  const instance = state.imageBlends.get(imageEditKey(index, slot));
+  const blend = instance || (image && image.blend) || settings.imageBlend;
   if (!blend) return;
   figure.style.setProperty('--image-blend', blend);
   figure.classList.add('has-blend');
@@ -1917,7 +2001,7 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     const figure = document.createElement('figure');
     const torn = settings.grit > 0 && rand() < 0.45 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
     figure.className = classes('image-block', settings.imageTreatment, rand() > 0.42 && 'line', recipe.rotate, torn);
-    applyFigureBlend(figure, image, settings);
+    applyFigureBlend(figure, image, settings, index, 'primary');
     placePercent(figure, recipe.image);
     applyImageEdit(figure, index, 'primary');
 
@@ -1937,7 +2021,7 @@ function renderPage(chunk, index, total, settings, rand, outputIndex) {
     const figure = document.createElement('figure');
     const torn = settings.grit > 0 && rand() < 0.4 * settings.grit ? pick(['torn-a', 'torn-b'], rand) : '';
     figure.className = classes('image-block', settings.imageTreatment, torn);
-    applyFigureBlend(figure, second, settings);
+    applyFigureBlend(figure, second, settings, index, 'secondary');
     placePercent(figure, {
       left: clamp(8 + rand() * 72, 4, 82),
       top: clamp(8 + rand() * 62, 4, 78),
@@ -2349,6 +2433,7 @@ function serializeBook() {
     bodyEdits: [...state.bodyEdits.entries()],
     titleEdits: [...state.titleEdits.entries()],
     imageEdits: [...state.imageEdits.entries()],
+    imageBlends: [...state.imageBlends.entries()],
     textZoneEdits: [...state.textZoneEdits.entries()],
     images: state.images,
     asciiPages: state.asciiPages,
@@ -2394,6 +2479,7 @@ async function loadBook(id) {
   state.bodyEdits = new Map(record.bodyEdits || []);
   state.titleEdits = new Map(record.titleEdits || []);
   state.imageEdits = new Map(record.imageEdits || []);
+  state.imageBlends = new Map(record.imageBlends || []);
   state.textZoneEdits = new Map(record.textZoneEdits || []);
 
   refreshFontSelects();
@@ -2639,6 +2725,7 @@ els.pages.addEventListener('mouseup', () => {
 });
 els.pages.addEventListener('pointerdown', startImageDrag);
 els.pages.addEventListener('pointerdown', startTextZoneDrag);
+els.pages.addEventListener('contextmenu', onPageContextMenu);
 window.addEventListener('pointermove', moveDraggedImage);
 window.addEventListener('pointermove', moveTextZoneDrag);
 window.addEventListener('pointerup', stopImageDrag);
