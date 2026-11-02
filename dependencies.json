@@ -1,0 +1,6 @@
+{
+  "about": "What this repository relies on outside its own code: runtimes, programs it runs, services it calls, packages. Written by the auto-heal check (node ~/.claude/skills/auto-heal/scripts/check.mjs --write-deps). A new entry in a diff is a new dependency: give it a contract in .auto-heal.json if the code would break when it changes.",
+  "dependencies": [
+    {"id":"service:api.openverse.org","used":["script.js"],"contracts":["Openverse image search response"]}
+  ]
+}

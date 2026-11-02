@@ -1,0 +1,16 @@
+{
+  "contracts": [
+    {
+      "name": "Openverse image search response",
+      "covers": ["service:api.openverse.org"],
+      "http": {
+        "url": "https://api.openverse.org/v1/images/?q=forest&page_size=1&page=1",
+        "expect": ["results[].thumbnail"]
+      }
+    }
+  ],
+  "ignore": [
+    "service:fonts.googleapis.com",
+    "service:fonts.gstatic.com"
+  ]
+}
